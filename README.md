@@ -1,9 +1,2 @@
-# Thespian
-Fast & flexible actors for Zig, C & C++ applications
-
-To build:
-```
-./zig build
-```
-
-See `tests/*` for many interesting examples.
+# Zig CBOR
+A Fast & flexible cbor encoding, decoding and matching library for Zig
