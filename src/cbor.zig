@@ -215,6 +215,9 @@ pub fn writeValue(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
         .error_union => return if (value) |v| writeValue(writer, v) else |err| writeValue(writer, err),
         .error_set => return writeErrorset(writer, value),
         .@"union" => |info| {
+            if (std.meta.hasFn(T, "cborEncode")) {
+                return value.cborEncode(writer);
+            }
             if (info.tag_type) |TagType| {
                 comptime var v = void;
                 inline for (info.fields) |u_field| {
@@ -231,6 +234,9 @@ pub fn writeValue(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
             }
         },
         .@"struct" => |info| {
+            if (std.meta.hasFn(T, "cborEncode")) {
+                return value.cborEncode(writer);
+            }
             if (info.is_tuple) {
                 if (info.fields.len == 0) return writeNull(writer);
                 try writeArrayHeader(writer, info.fields.len);
@@ -276,6 +282,12 @@ pub fn writeValue(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
             32 => try writeF32(writer, value),
             64 => try writeF64(writer, value),
             else => @compileError("cannot write type '" ++ @typeName(T) ++ "' to cbor stream"),
+        },
+        .@"enum" => {
+            if (std.meta.hasFn(T, "cborEncode")) {
+                return value.cborEncode(writer);
+            }
+            return writeString(writer, @tagName(value));
         },
         else => @compileError("cannot write type '" ++ @typeName(T) ++ "' to cbor stream"),
     }
