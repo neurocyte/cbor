@@ -16,6 +16,10 @@ pub const Error = error{
     InvalidType,
     TooShort,
     OutOfMemory,
+    InvalidFloatType,
+    InvalidArrayType,
+    InvalidPIntType,
+    JsonIncompatibleType,
 };
 
 pub const JsonEncodeError = (Error || error{
@@ -310,7 +314,7 @@ pub fn decodeType(iter: *[]const u8) error{TooShort}!CborType {
     return .{ .type = type_, .minor = bits.minor, .major = bits.major };
 }
 
-fn decodeUIntLengthRecurse(iter: *[]const u8, length: usize, acc: u64) !u64 {
+fn decodeUIntLengthRecurse(iter: *[]const u8, length: usize, acc: u64) error{TooShort}!u64 {
     if (iter.len < 1)
         return error.TooShort;
     const v: u8 = iter.*[0];
@@ -327,14 +331,14 @@ fn decodeUIntLength(iter: *[]const u8, length: usize) !u64 {
     return decodeUIntLengthRecurse(iter, length, 0);
 }
 
-fn decodePInt(iter: *[]const u8, minor: u5) !u64 {
+fn decodePInt(iter: *[]const u8, minor: u5) error{ TooShort, InvalidPIntType }!u64 {
     if (minor < 24) return minor;
     return switch (minor) {
         24 => decodeUIntLength(iter, 1), // 1 byte
         25 => decodeUIntLength(iter, 2), // 2 byte
         26 => decodeUIntLength(iter, 4), // 4 byte
         27 => decodeUIntLength(iter, 8), // 8 byte
-        else => error.InvalidType,
+        else => error.InvalidPIntType,
     };
 }
 
@@ -347,16 +351,16 @@ pub fn decodeMapHeader(iter: *[]const u8) Error!usize {
     if (t.type == cbor_magic_null)
         return 0;
     if (t.major != 5)
-        return error.InvalidType;
+        return error.InvalidMapType;
     return @intCast(try decodePInt(iter, t.minor));
 }
 
-pub fn decodeArrayHeader(iter: *[]const u8) Error!usize {
+pub fn decodeArrayHeader(iter: *[]const u8) error{ TooShort, InvalidArrayType, InvalidPIntType }!usize {
     const t = try decodeType(iter);
     if (t.type == cbor_magic_null)
         return 0;
     if (t.major != 4)
-        return error.InvalidType;
+        return error.InvalidArrayType;
     return @intCast(try decodePInt(iter, t.minor));
 }
 
@@ -461,7 +465,7 @@ fn decodeFloat(comptime T: type, iter_: *[]const u8, t: CborType) Error!T {
             v = @floatCast(f);
             iter = iter[8..];
         },
-        else => return error.InvalidType,
+        else => return error.InvalidFloatType,
     }
     iter_.* = iter;
     return v;
@@ -786,7 +790,7 @@ fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap) !bool {
     if (t.type == cbor_magic_null)
         return true;
     if (t.major != 5)
-        return error.InvalidType;
+        return error.NotAnObject;
     const ret = try decodeJsonObject(&iter, t.minor, obj);
     if (ret) iter_.* = iter;
     return ret;
@@ -972,7 +976,7 @@ pub fn JsonStreamWriter(comptime Writer: type) type {
                 3 => w.write(try decodeString(iter, t.minor)), // string
                 4 => jsonWriteArray(w, iter, t.minor), // array
                 5 => jsonWriteMap(w, iter, t.minor), // map
-                else => error.InvalidType,
+                else => error.JsonIncompatibleType,
             };
         }
     };
