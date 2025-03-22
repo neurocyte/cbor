@@ -788,6 +788,18 @@ fn matchArray(iter_: *[]const u8, arr: anytype, info: anytype) Error!bool {
     return n == 0;
 }
 
+fn matchArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
+    var i: usize = 0;
+    var n = try decodeArrayHeader(iter);
+    if (n != arr.len) return false;
+    while (n > 0) : (n -= 1) {
+        if (!(matchValue(iter, extract(&arr[i])) catch return false))
+            return false;
+        i += 1;
+    }
+    return true;
+}
+
 fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap) !bool {
     var iter = iter_.*;
     const t = try decodeType(&iter);
@@ -892,7 +904,8 @@ fn Extractor(comptime T: type) type {
                 },
                 .float => return matchFloat(T, iter, self.dest),
                 .@"enum" => return matchEnum(T, iter, self.dest),
-                else => extractError(T),
+                .array => return matchArrayScalar(iter, self.dest),
+                else => return self.dest.cborExtract(iter),
             }
         }
     };
