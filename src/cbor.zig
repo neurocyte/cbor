@@ -126,8 +126,8 @@ pub fn writeMapHeader(writer: anytype, sz: usize) @TypeOf(writer).Error!void {
 
 pub fn writeArray(writer: anytype, args: anytype) @TypeOf(writer).Error!void {
     const args_type_info = @typeInfo(@TypeOf(args));
-    if (args_type_info != .Struct) @compileError("expected tuple or struct argument");
-    const fields_info = args_type_info.Struct.fields;
+    if (args_type_info != .@"struct") @compileError("expected tuple or struct argument");
+    const fields_info = args_type_info.@"struct".fields;
     try writeArrayHeader(writer, fields_info.len);
     inline for (fields_info) |field_info|
         try writeValue(writer, @field(args, field_info.name));
