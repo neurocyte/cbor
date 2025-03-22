@@ -20,6 +20,7 @@ pub const Error = error{
     InvalidArrayType,
     InvalidPIntType,
     JsonIncompatibleType,
+    NotAnObject,
 };
 
 pub const JsonEncodeError = (Error || error{
