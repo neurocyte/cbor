@@ -818,7 +818,11 @@ pub fn match(buf: []const u8, pattern: anytype) Error!bool {
 }
 
 fn extractError(comptime T: type) noreturn {
-    @compileError("cannot extract type '" ++ @typeName(T) ++ "' from cbor stream");
+    @compileError("cannot extract type '" ++ @typeName(T) ++ "' from a cbor stream");
+}
+
+fn extractErrorAlloc(comptime T: type) noreturn {
+    @compileError("extracting type '" ++ @typeName(T) ++ "' from a cbor stream requires an allocating extractor, use extractAlloc");
 }
 
 fn hasExtractorTag(info: anytype) bool {
@@ -834,6 +838,79 @@ fn isExtractor(comptime T: type) bool {
     return comptime switch (@typeInfo(T)) {
         .@"struct" => |info| hasExtractorTag(info),
         else => false,
+    };
+}
+
+fn ExtractDef(comptime T: type) type {
+    return fn (*T, *[]const u8) Error!bool;
+}
+
+fn hasExtractMethod(T: type, info: anytype) bool {
+    const result = blk: {
+        if (info.is_tuple) break :blk false;
+        for (info.decls) |decl| {
+            if (std.mem.eql(u8, decl.name, "cborExtract") and @TypeOf(@field(T, decl.name)) == ExtractDef(T))
+                break :blk true;
+        }
+        break :blk false;
+    };
+    // @compileLog("hasExtractMethod", @typeName(T), result);
+    return result;
+}
+
+pub fn isExtractable(comptime T: type) bool {
+    return comptime switch (@typeInfo(T)) {
+        .@"struct" => |info| hasExtractMethod(T, info),
+        .@"enum" => |info| hasExtractMethod(T, info),
+        .@"union" => |info| hasExtractMethod(T, info),
+        else => false,
+    };
+}
+
+fn ExtractAllocDef(comptime T: type) type {
+    return fn (*T, *[]const u8, std.mem.Allocator) Error!bool;
+}
+
+fn hasExtractMethodAlloc(T: type, info: anytype) bool {
+    const result = blk: {
+        if (@hasField(@TypeOf(info), "is_tuple") and info.is_tuple) break :blk false;
+        for (info.decls) |decl| {
+            if (std.mem.eql(u8, decl.name, "cborExtract") and @TypeOf(@field(T, decl.name)) == ExtractAllocDef(T))
+                break :blk true;
+        }
+        break :blk false;
+    };
+    // @compileLog("hasExtractMethodAlloc", @typeName(T), result);
+    return result;
+}
+
+pub fn isExtractableAlloc(comptime T: type) bool {
+    return comptime switch (@typeInfo(T)) {
+        .@"struct" => |info| hasExtractMethodAlloc(T, info),
+        .@"enum" => |info| hasExtractMethodAlloc(T, info),
+        .@"union" => |info| hasExtractMethodAlloc(T, info),
+        else => false,
+    };
+}
+
+fn GenericExtractorAlloc(T: type) type {
+    return struct {
+        dest: *T,
+        allocator: std.mem.Allocator,
+        const Self = @This();
+        pub const EXTRACTOR_TAG = struct {};
+
+        pub fn init(dest: *T, allocator: std.mem.Allocator) Self {
+            return .{ .dest = dest, .allocator = allocator };
+        }
+
+        pub fn extract(self: Self, iter: *[]const u8) Error!bool {
+            if (comptime isExtractableAlloc(T)) {
+                return self.dest.cborExtract(iter, self.allocator);
+            } else {
+                return self.dest.cborExtract(iter);
+            }
+        }
     };
 }
 
@@ -914,7 +991,10 @@ fn Extractor(comptime T: type) type {
 fn ExtractorType(comptime T: type) type {
     const T_type_info = @typeInfo(T);
     if (T_type_info != .pointer) @compileError("extract requires a pointer argument");
-    return Extractor(T_type_info.pointer.child);
+    return if (isExtractableAlloc(T_type_info.pointer.child))
+        extractErrorAlloc(T_type_info.pointer.child)
+    else
+        Extractor(T_type_info.pointer.child);
 }
 
 pub fn extract(dest: anytype) ExtractorType(@TypeOf(dest)) {
@@ -923,6 +1003,21 @@ pub fn extract(dest: anytype) ExtractorType(@TypeOf(dest)) {
             @compileError("isExtractor self check failed for " ++ @typeName(ExtractorType(@TypeOf(dest))));
     }
     return ExtractorType(@TypeOf(dest)).init(dest);
+}
+
+fn ExtractorTypeAlloc(comptime T: type) type {
+    const T_type_info = @typeInfo(T);
+    if (T_type_info != .pointer) @compileError("extractAlloc requires a pointer argument");
+    // @compileLog("ExtractorTypeAlloc", @typeName(T), isExtractableAlloc(T_type_info.pointer.child));
+    return GenericExtractorAlloc(T_type_info.pointer.child);
+}
+
+pub fn extractAlloc(dest: anytype, allocator: std.mem.Allocator) ExtractorTypeAlloc(@TypeOf(dest)) {
+    comptime {
+        if (!isExtractor(ExtractorTypeAlloc(@TypeOf(dest))))
+            @compileError("isExtractor self check failed for " ++ @typeName(ExtractorTypeAlloc(@TypeOf(dest))));
+    }
+    return ExtractorTypeAlloc(@TypeOf(dest)).init(dest, allocator);
 }
 
 const CborExtractor = struct {
