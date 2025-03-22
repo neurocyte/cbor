@@ -759,7 +759,11 @@ fn matchArrayMore(iter_: *[]const u8, n_: u64) Error!bool {
 
 fn matchArray(iter_: *[]const u8, arr: anytype, info: anytype) Error!bool {
     var iter = iter_.*;
-    var n = try decodeArrayHeader(&iter);
+    var n = decodeArrayHeader(&iter) catch |e| switch (e) {
+        error.InvalidArrayType => return false,
+        error.InvalidPIntType => return e,
+        error.TooShort => return e,
+    };
     inline for (info.fields) |f| {
         const value = @field(arr, f.name);
         if (isMore(value))
