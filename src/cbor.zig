@@ -347,7 +347,7 @@ fn decodeNInt(iter: *[]const u8, minor: u5) Error!i64 {
     return -@as(i64, @intCast(try decodePInt(iter, minor) + 1));
 }
 
-pub fn decodeMapHeader(iter: *[]const u8) Error!usize {
+pub fn decodeMapHeader(iter: *[]const u8) error{ TooShort, InvalidMapType, InvalidPIntType }!usize {
     const t = try decodeType(iter);
     if (t.type == cbor_magic_null)
         return 0;
