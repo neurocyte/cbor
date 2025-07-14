@@ -21,6 +21,7 @@ pub const Error = error{
     InvalidPIntType,
     JsonIncompatibleType,
     NotAnObject,
+    BadArrayAllocExtract,
 };
 
 pub const JsonEncodeError = (Error || error{
@@ -801,6 +802,21 @@ fn matchArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
     return true;
 }
 
+fn matchArrayAlloc(iter: *[]const u8, element_type: type, arr: anytype, allocator: std.mem.Allocator) Error!bool {
+    var arr_: std.ArrayListUnmanaged(element_type) = .empty;
+    errdefer arr_.deinit(allocator);
+    var n = try decodeArrayHeader(iter);
+    while (n > 0) : (n -= 1) {
+        var element: element_type = undefined;
+        const extractor = GenericExtractorAlloc(element_type).init(&element, allocator);
+        if (try extractor.extract(iter)) {
+            (try arr_.addOne(allocator)).* = element;
+        } else return error.BadArrayAllocExtract;
+    }
+    arr.* = try arr_.toOwnedSlice(allocator);
+    return true;
+}
+
 fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap) !bool {
     var iter = iter_.*;
     const t = try decodeType(&iter);
@@ -909,7 +925,32 @@ fn GenericExtractorAlloc(T: type) type {
             if (comptime isExtractableAlloc(T)) {
                 return self.dest.cborExtract(iter, self.allocator);
             } else {
-                return self.dest.cborExtract(iter);
+                switch (comptime @typeInfo(T)) {
+                    .int, .comptime_int => return matchInt(T, iter, self.dest),
+                    .bool => return matchBool(iter, self.dest),
+                    .pointer => |ptr_info| switch (ptr_info.size) {
+                        .slice => {
+                            if (ptr_info.child == u8)
+                                return matchString(iter, self.dest)
+                            else
+                                return matchArrayAlloc(iter, ptr_info.child, self.dest, self.allocator);
+                        },
+                        else => extractError(T),
+                    },
+                    .optional => |opt_info| {
+                        var nested: opt_info.child = undefined;
+                        const extractor = GenericExtractorAlloc(opt_info.child).init(&nested, self.allocator);
+                        if (try extractor.extract(iter)) {
+                            self.dest.* = nested;
+                            return true;
+                        }
+                        return false;
+                    },
+                    .float => return matchFloat(T, iter, self.dest),
+                    .@"enum" => return matchEnum(T, iter, self.dest),
+                    .array => return matchArrayScalar(iter, self.dest),
+                    else => return self.dest.cborExtract(iter),
+                }
             }
         }
     };
