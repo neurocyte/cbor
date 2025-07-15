@@ -4,6 +4,7 @@ const cbor_mod = @import("cbor");
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualDeep = std.testing.expectEqualDeep;
+const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
 
 const fmt = cbor_mod.fmt;
@@ -519,5 +520,5 @@ test "cbor.extract_cbor f64" {
     const json2 = try toJsonAlloc(std.testing.allocator, sub);
     defer std.testing.allocator.free(json2);
 
-    try expectEqualDeep("[9.689138531684875e-1]", json2);
+    try expectEqualStrings("[0.9689138531684875]", json2);
 }
