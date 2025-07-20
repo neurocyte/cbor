@@ -24,6 +24,7 @@ const writeArrayHeader = cbor_mod.writeArrayHeader;
 const writeMapHeader = cbor_mod.writeMapHeader;
 const writeValue = cbor_mod.writeValue;
 const extract = cbor_mod.extract;
+const extractAlloc = cbor_mod.extractAlloc;
 const extract_cbor = cbor_mod.extract_cbor;
 
 const more = cbor_mod.more;
@@ -520,5 +521,183 @@ test "cbor.extract_cbor f64" {
     const json2 = try toJsonAlloc(std.testing.allocator, sub);
     defer std.testing.allocator.free(json2);
 
-    try expectEqualStrings("[0.9689138531684875]", json2);
+    try expectEqualStrings("[9.689138531684875e-1]", json2);
+}
+
+test "cbor.writeValue enum" {
+    const TestEnum = enum { a, b };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestEnum.a);
+    const expected = @tagName(TestEnum.a);
+    var m = std.json.Value{ .null = {} };
+    try expect(try match(stream.getWritten(), extract(&m)));
+    try expectEqualStrings(expected, m.string);
+}
+
+test "cbor.extract enum" {
+    const TestEnum = enum { a, b };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestEnum.a);
+    var m: TestEnum = undefined;
+    try expect(try match(stream.getWritten(), extract(&m)));
+    try expectEqualStrings(@tagName(m), @tagName(TestEnum.a));
+    try expect(m == .a);
+}
+
+test "cbor.writeValue tagged union" {
+    const TestUnion = union(enum) { a: f32, b: []const u8 };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestUnion{ .b = "should work" });
+    var tagName = std.json.Value{ .null = {} };
+    var value = std.json.Value{ .null = {} };
+    var iter: []const u8 = stream.getWritten();
+    try expect(try matchValue(&iter, .{ extract(&tagName), extract(&value) }));
+    try expectEqualStrings(@tagName(TestUnion.b), tagName.string);
+    try expectEqualStrings("should work", value.string);
+}
+
+test "cbor.writeValue tagged union no payload types" {
+    const TestUnion = union(enum) { a, b };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestUnion.b);
+
+    try expect(try match(stream.getWritten(), @tagName(TestUnion.b)));
+    var tagName = std.json.Value{ .null = {} };
+    try expect(try match(stream.getWritten(), extract(&tagName)));
+    try expectEqualStrings(@tagName(TestUnion.b), tagName.string);
+}
+
+test "cbor.writeValue nested union json" {
+    const TestUnion = union(enum) {
+        a: f32,
+        b: []const u8,
+        c: []const union(enum) {
+            d: f32,
+            e: i32,
+            f,
+        },
+    };
+    var buf: [256]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try writeValue(writer, TestUnion{ .c = &.{ .{ .d = 1.5 }, .{ .e = 5 }, .f } });
+    var json_buf: [128]u8 = undefined;
+    const json = try toJson(stream.getWritten(), &json_buf);
+    try expectEqualStrings(json,
+        \\["c",[["d",1.5e0],["e",5],["f"]]]
+    );
+}
+
+test "cbor.extract tagged union" {
+    const TestUnion = union(enum) { a: f32, b: []const u8 };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestUnion{ .b = "should work" });
+    var m: TestUnion = undefined;
+    try expect(try match(stream.getWritten(), extract(&m)));
+    try expectEqualDeep(TestUnion{ .b = "should work" }, m);
+}
+
+test "cbor.extract nested union" {
+    const TestUnion = union(enum) {
+        a: f32,
+        b: []const u8,
+        c: []const union(enum) {
+            d: f32,
+            e: i32,
+            f,
+        },
+    };
+    var buf: [256]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+    try writeValue(writer, TestUnion{ .c = &.{ .{ .d = 1.5 }, .{ .e = 5 }, .f } });
+    var m: TestUnion = undefined;
+    try expect(try match(stream.getWritten(), extractAlloc(&m, allocator)));
+    try expectEqualDeep(TestUnion{ .c = &.{ .{ .d = 1.5 }, .{ .e = 5 }, .f } }, m);
+}
+
+test "cbor.extract struct no fields" {
+    const TestStruct = struct {};
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, TestStruct{});
+    var m: TestStruct = undefined;
+    try expect(try match(stream.getWritten(), extract(&m)));
+    try expectEqualDeep(TestStruct{}, m);
+}
+
+test "cbor.extract_cbor struct" {
+    const TestStruct = struct {
+        a: f32,
+        b: []const u8,
+    };
+    var buf: [128]u8 = undefined;
+    const v = TestStruct{ .a = 1.5, .b = "hello" };
+    const m = fmt(&buf, v);
+    var map_cbor: []const u8 = undefined;
+    try expect(try match(m, extract_cbor(&map_cbor)));
+    var json_buf: [256]u8 = undefined;
+    const json = try toJson(map_cbor, &json_buf);
+    try expectEqualStrings(json,
+        \\{"a":1.5e0,"b":"hello"}
+    );
+}
+
+test "cbor.extract struct" {
+    const TestStruct = struct {
+        a: f32,
+        b: []const u8,
+    };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    const v = TestStruct{ .a = 1.5, .b = "hello" };
+    try writeValue(writer, v);
+    var obj: TestStruct = undefined;
+    var json_buf: [256]u8 = undefined;
+    var iter: []const u8 = stream.getWritten();
+    const t = try decodeType(&iter);
+    try expectEqual(5, t.major);
+    const json = try toJson(stream.getWritten(), &json_buf);
+    try expectEqualStrings(json,
+        \\{"a":1.5e0,"b":"hello"}
+    );
+    try expect(try match(stream.getWritten(), extract(&obj)));
+    try expectEqual(1.5, obj.a);
+    try expectEqualStrings("hello", obj.b);
+}
+
+test "cbor.extractAlloc struct" {
+    const TestStruct = struct {
+        a: f32,
+        b: []const u8,
+    };
+    var buf: [128]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+    const writer = stream.writer();
+    const v = TestStruct{ .a = 1.5, .b = "hello" };
+    try writeValue(writer, v);
+    var obj: TestStruct = undefined;
+    try expect(try match(stream.getWritten(), extractAlloc(&obj, allocator)));
+    try expectEqual(1.5, obj.a);
+    try expectEqualStrings("hello", obj.b);
 }
