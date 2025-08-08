@@ -701,3 +701,84 @@ test "cbor.extractAlloc struct" {
     try expectEqual(1.5, obj.a);
     try expectEqualStrings("hello", obj.b);
 }
+
+fn test_value_write_and_extract(T: type, value: T) !void {
+    const test_value: T = value;
+    var buf: [1024]u8 = undefined;
+    var stream = std.io.fixedBufferStream(&buf);
+    const writer = stream.writer();
+    try writeValue(writer, test_value);
+
+    var result_value: T = undefined;
+
+    var iter: []const u8 = stream.getWritten();
+    try expect(try matchValue(&iter, extract(&result_value)));
+
+    switch (comptime @typeInfo(T)) {
+        .pointer => |ptr_info| switch (ptr_info.size) {
+            .slice => if (ptr_info.child == u8) return expectEqualStrings(test_value, result_value),
+            else => {},
+        },
+        .optional => |opt_info| switch (comptime @typeInfo(opt_info.child)) {
+            .pointer => |ptr_info| switch (ptr_info.size) {
+                .slice => if (ptr_info.child == u8) {
+                    if (test_value == null and result_value == null) return;
+                    if (test_value == null or result_value == null) return error.TestExpectedEqual;
+                    return expectEqualStrings(test_value.?, result_value.?);
+                },
+                else => {},
+            },
+            else => {},
+        },
+        else => {},
+    }
+    return expectEqual(test_value, result_value);
+}
+
+test "read/write optional bool (null)" {
+    try test_value_write_and_extract(?bool, null);
+}
+
+test "read/write optional bool (true)" {
+    try test_value_write_and_extract(?bool, true);
+}
+
+test "read/write optional bool (false)" {
+    try test_value_write_and_extract(?bool, false);
+}
+
+test "read/write optional string (null)" {
+    try test_value_write_and_extract(?[]const u8, null);
+}
+
+test "read/write optional string (non-null)" {
+    try test_value_write_and_extract(?[]const u8, "TESTME");
+}
+
+test "read/write optional struct (null)" {
+    try test_value_write_and_extract(?struct { field: usize }, null);
+}
+
+test "read/write optional struct (non-null)" {
+    try test_value_write_and_extract(?struct { field: usize }, .{ .field = 42 });
+}
+
+test "read/write struct optional field (null)" {
+    try test_value_write_and_extract(struct { field: ?usize }, .{ .field = null });
+}
+
+test "read/write struct optional field (non-null)" {
+    try test_value_write_and_extract(struct { field: ?usize }, .{ .field = 42 });
+}
+
+test "read/write optional struct optional field (null) (na)" {
+    try test_value_write_and_extract(?struct { field: ?usize }, null);
+}
+
+test "read/write optional struct optional field (non-null) (null)" {
+    try test_value_write_and_extract(?struct { field: ?usize }, .{ .field = null });
+}
+
+test "read/write optional struct optional field (non-null) (non=null)" {
+    try test_value_write_and_extract(?struct { field: ?usize }, .{ .field = 42 });
+}
