@@ -1244,6 +1244,10 @@ fn Extractor(comptime T: type) type {
                 },
                 .optional => |opt_info| {
                     var nested: opt_info.child = undefined;
+                    if (try matchNull(iter)) {
+                        self.dest.* = null;
+                        return true;
+                    }
                     const extractor = Extractor(opt_info.child).init(&nested);
                     if (try extractor.extract(iter)) {
                         self.dest.* = nested;
