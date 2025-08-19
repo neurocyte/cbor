@@ -1,10 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const Io = std.Io;
 const native_endian = builtin.cpu.arch.endian();
 const eql = std.mem.eql;
 const bufPrint = std.fmt.bufPrint;
-const fixedBufferStream = std.io.fixedBufferStream;
 const maxInt = std.math.maxInt;
 const minInt = std.math.minInt;
 const json = std.json;
@@ -15,6 +15,7 @@ pub const Error = error{
     IntegerTooSmall,
     InvalidType,
     TooShort,
+    WriteFailed,
     OutOfMemory,
     InvalidFloatType,
     InvalidArrayType,
@@ -86,11 +87,11 @@ fn isMore(value: anytype) bool {
     return if (comptime @TypeOf(value) == value_type) value == value_type.more else false;
 }
 
-fn write(writer: anytype, value: u8) @TypeOf(writer).Error!void {
+fn write(writer: *Io.Writer, value: u8) Io.Writer.Error!void {
     _ = try writer.write(&[_]u8{value});
 }
 
-fn writeTypedVal(writer: anytype, type_: u8, value: u64) @TypeOf(writer).Error!void {
+fn writeTypedVal(writer: *Io.Writer, type_: u8, value: u64) Io.Writer.Error!void {
     const t: u8 = type_ << 5;
     if (value < 24) {
         try write(writer, t | @as(u8, @truncate(value)));
@@ -120,15 +121,15 @@ fn writeTypedVal(writer: anytype, type_: u8, value: u64) @TypeOf(writer).Error!v
     }
 }
 
-pub fn writeArrayHeader(writer: anytype, sz: usize) @TypeOf(writer).Error!void {
+pub fn writeArrayHeader(writer: *Io.Writer, sz: usize) Io.Writer.Error!void {
     return writeTypedVal(writer, cbor_magic_type_array, sz);
 }
 
-pub fn writeMapHeader(writer: anytype, sz: usize) @TypeOf(writer).Error!void {
+pub fn writeMapHeader(writer: *Io.Writer, sz: usize) Io.Writer.Error!void {
     return writeTypedVal(writer, cbor_magic_type_map, sz);
 }
 
-pub fn writeArray(writer: anytype, args: anytype) @TypeOf(writer).Error!void {
+pub fn writeArray(writer: *Io.Writer, args: anytype) Io.Writer.Error!void {
     const args_type_info = @typeInfo(@TypeOf(args));
     if (args_type_info != .@"struct") @compileError("expected tuple or struct argument");
     const fields_info = args_type_info.@"struct".fields;
@@ -137,18 +138,18 @@ pub fn writeArray(writer: anytype, args: anytype) @TypeOf(writer).Error!void {
         try writeValue(writer, @field(args, field_info.name));
 }
 
-fn writeI64(writer: anytype, value: i64) @TypeOf(writer).Error!void {
+fn writeI64(writer: *Io.Writer, value: i64) Io.Writer.Error!void {
     return if (value < 0)
         writeTypedVal(writer, 1, @as(u64, @bitCast(-(value + 1))))
     else
         writeTypedVal(writer, 0, @as(u64, @bitCast(value)));
 }
 
-fn writeU64(writer: anytype, value: u64) @TypeOf(writer).Error!void {
+fn writeU64(writer: *Io.Writer, value: u64) Io.Writer.Error!void {
     return writeTypedVal(writer, 0, value);
 }
 
-fn writeF16(writer: anytype, value: f16) @TypeOf(writer).Error!void {
+fn writeF16(writer: *Io.Writer, value: f16) Io.Writer.Error!void {
     try write(writer, cbor_magic_float16);
     const value_bytes = std.mem.asBytes(&value);
     switch (native_endian) {
@@ -160,7 +161,7 @@ fn writeF16(writer: anytype, value: f16) @TypeOf(writer).Error!void {
     }
 }
 
-fn writeF32(writer: anytype, value: f32) @TypeOf(writer).Error!void {
+fn writeF32(writer: *Io.Writer, value: f32) Io.Writer.Error!void {
     try write(writer, cbor_magic_float32);
     const value_bytes = std.mem.asBytes(&value);
     switch (native_endian) {
@@ -174,7 +175,7 @@ fn writeF32(writer: anytype, value: f32) @TypeOf(writer).Error!void {
     }
 }
 
-fn writeF64(writer: anytype, value: f64) @TypeOf(writer).Error!void {
+fn writeF64(writer: *Io.Writer, value: f64) Io.Writer.Error!void {
     try write(writer, cbor_magic_float64);
     const value_bytes = std.mem.asBytes(&value);
     switch (native_endian) {
@@ -192,29 +193,28 @@ fn writeF64(writer: anytype, value: f64) @TypeOf(writer).Error!void {
     }
 }
 
-fn writeString(writer: anytype, s: []const u8) @TypeOf(writer).Error!void {
+fn writeString(writer: *Io.Writer, s: []const u8) Io.Writer.Error!void {
     try writeTypedVal(writer, 3, s.len);
     _ = try writer.write(s);
 }
 
-fn writeBool(writer: anytype, value: bool) @TypeOf(writer).Error!void {
+fn writeBool(writer: *Io.Writer, value: bool) Io.Writer.Error!void {
     return write(writer, if (value) cbor_magic_true else cbor_magic_false);
 }
 
-fn writeNull(writer: anytype) @TypeOf(writer).Error!void {
+fn writeNull(writer: *Io.Writer) Io.Writer.Error!void {
     return write(writer, cbor_magic_null);
 }
 
-fn writeErrorset(writer: anytype, err: anyerror) @TypeOf(writer).Error!void {
+fn writeErrorset(writer: *Io.Writer, err: anyerror) Io.Writer.Error!void {
     var buf: [256]u8 = undefined;
-    var stream = fixedBufferStream(&buf);
-    const writer_ = stream.writer();
-    _ = writer_.write("error.") catch @panic("cbor.writeErrorset failed!");
-    _ = writer_.write(@errorName(err)) catch @panic("cbor.writeErrorset failed!");
-    return writeString(writer, stream.getWritten());
+    var fixed_writer: Io.Writer = .fixed(&buf);
+    _ = fixed_writer.write("error.") catch @panic("cbor.writeErrorset failed!");
+    _ = fixed_writer.write(@errorName(err)) catch @panic("cbor.writeErrorset failed!");
+    return writeString(writer, fixed_writer.buffered());
 }
 
-fn writeEnum(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
+fn writeEnum(writer: *Io.Writer, value: anytype) Io.Writer.Error!void {
     const T = @TypeOf(value);
 
     if (std.meta.hasFn(T, "cborEncode")) {
@@ -224,7 +224,7 @@ fn writeEnum(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
     return writeString(writer, @tagName(value));
 }
 
-fn writeUnion(writer: anytype, value: anytype, info: std.builtin.Type.Union) @TypeOf(writer).Error!void {
+fn writeUnion(writer: *Io.Writer, value: anytype, info: std.builtin.Type.Union) Io.Writer.Error!void {
     const T = @TypeOf(value);
 
     if (std.meta.hasFn(T, "cborEncode")) {
@@ -252,7 +252,7 @@ fn writeUnion(writer: anytype, value: anytype, info: std.builtin.Type.Union) @Ty
     }
 }
 
-pub fn writeValue(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
+pub fn writeValue(writer: *Io.Writer, value: anytype) Io.Writer.Error!void {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
         .int, .comptime_int => return if (T == u64) writeU64(writer, value) else writeI64(writer, @intCast(value)),
@@ -322,9 +322,9 @@ pub fn writeValue(writer: anytype, value: anytype) @TypeOf(writer).Error!void {
 }
 
 pub fn fmt(buf: []u8, value: anytype) []const u8 {
-    var stream = fixedBufferStream(buf);
-    writeValue(stream.writer(), value) catch unreachable;
-    return stream.getWritten();
+    var writer: Io.Writer = .fixed(buf);
+    writeValue(&writer, value) catch unreachable;
+    return writer.buffered();
 }
 
 const CborType = struct { type: u8, minor: u5, major: u3 };
@@ -1323,109 +1323,107 @@ pub fn extract_cbor(dest: *[]const u8) CborExtractor {
     return CborExtractor.init(dest);
 }
 
-pub fn JsonStream(comptime T: type) type {
-    return JsonStreamWriter(T.Writer);
-}
-
-pub fn JsonStreamWriter(comptime Writer: type) type {
-    return struct {
-        const JsonWriter = json.WriteStream(Writer, .{ .checked_to_fixed_depth = 256 });
-
-        fn jsonWriteArray(w: *JsonWriter, iter: *[]const u8, minor: u5) !void {
-            var count = try decodePInt(iter, minor);
-            try w.beginArray();
-            while (count > 0) : (count -= 1) {
-                try jsonWriteValue(w, iter);
-            }
-            try w.endArray();
+pub const JsonWriter = struct {
+    fn jsonWriteArray(w: *json.Stringify, iter: *[]const u8, minor: u5) !void {
+        var count = try decodePInt(iter, minor);
+        try w.beginArray();
+        while (count > 0) : (count -= 1) {
+            try jsonWriteValue(w, iter);
         }
+        try w.endArray();
+    }
 
-        fn jsonWriteMap(w: *JsonWriter, iter: *[]const u8, minor: u5) !void {
-            var count = try decodePInt(iter, minor);
-            try w.beginObject();
-            while (count > 0) : (count -= 1) {
-                const t = try decodeType(iter);
-                if (t.major != 3) return error.InvalidType;
-                try w.objectField(try decodeString(iter, t.minor));
-                try jsonWriteValue(w, iter);
-            }
-            try w.endObject();
-        }
-
-        pub fn jsonWriteValue(w: *JsonWriter, iter: *[]const u8) (JsonEncodeError || Writer.Error)!void {
+    fn jsonWriteMap(w: *json.Stringify, iter: *[]const u8, minor: u5) !void {
+        var count = try decodePInt(iter, minor);
+        try w.beginObject();
+        while (count > 0) : (count -= 1) {
             const t = try decodeType(iter);
-            switch (t.type) {
-                cbor_magic_false => return w.write(false),
-                cbor_magic_true => return w.write(true),
-                cbor_magic_null => return w.write(null),
-                cbor_magic_float16 => return w.write(try decodeFloat(f16, iter, t)),
-                cbor_magic_float32 => return w.write(try decodeFloat(f32, iter, t)),
-                cbor_magic_float64 => return w.write(try decodeFloat(f64, iter, t)),
-                else => {},
-            }
-            return switch (t.major) {
-                0 => w.write(try decodePInt(iter, t.minor)), // positive integer
-                1 => w.write(try decodeNInt(iter, t.minor)), // negative integer
-                2 => error.UnsupportedType, // bytes
-                3 => w.write(try decodeString(iter, t.minor)), // string
-                4 => jsonWriteArray(w, iter, t.minor), // array
-                5 => jsonWriteMap(w, iter, t.minor), // map
-                else => error.JsonIncompatibleType,
-            };
+            if (t.major != 3) return error.InvalidType;
+            try w.objectField(try decodeString(iter, t.minor));
+            try jsonWriteValue(w, iter);
         }
+        try w.endObject();
+    }
+
+    pub fn jsonWriteValue(w: *json.Stringify, iter: *[]const u8) (JsonEncodeError || Io.Writer.Error)!void {
+        const t = try decodeType(iter);
+        switch (t.type) {
+            cbor_magic_false => return w.write(false),
+            cbor_magic_true => return w.write(true),
+            cbor_magic_null => return w.write(null),
+            cbor_magic_float16 => return w.write(try decodeFloat(f16, iter, t)),
+            cbor_magic_float32 => return w.write(try decodeFloat(f32, iter, t)),
+            cbor_magic_float64 => return w.write(try decodeFloat(f64, iter, t)),
+            else => {},
+        }
+        return switch (t.major) {
+            0 => w.write(try decodePInt(iter, t.minor)), // positive integer
+            1 => w.write(try decodeNInt(iter, t.minor)), // negative integer
+            2 => error.UnsupportedType, // bytes
+            3 => w.write(try decodeString(iter, t.minor)), // string
+            4 => jsonWriteArray(w, iter, t.minor), // array
+            5 => jsonWriteMap(w, iter, t.minor), // map
+            else => error.JsonIncompatibleType,
+        };
+    }
+};
+
+pub fn toJson(cbor_buf: []const u8, json_buf: []u8) (JsonEncodeError || Io.Writer.Error)![]const u8 {
+    var writer: Io.Writer = .fixed(json_buf);
+    var s: json.Stringify = .{ .writer = &writer };
+    var iter: []const u8 = cbor_buf;
+    try JsonWriter.jsonWriteValue(&s, &iter);
+    return writer.buffered();
+}
+
+pub fn toJsonWriter(cbor_buf: []const u8, writer: *Io.Writer, options: std.json.StringifyOptions) !void {
+    var s: json.Stringify = .{ .writer = writer, .options = options };
+    var iter: []const u8 = cbor_buf;
+    try JsonWriter.jsonWriteValue(&s, &iter);
+}
+
+pub fn toJsonAlloc(a: std.mem.Allocator, cbor_buf: []const u8) (JsonEncodeError || Io.Writer.Error)![]const u8 {
+    var w = Io.Writer.Allocating.init(a);
+    defer w.deinit();
+    var s: json.Stringify = .{ .writer = &w.writer };
+    var iter: []const u8 = cbor_buf;
+    try JsonWriter.jsonWriteValue(&s, &iter);
+    return w.toOwnedSlice();
+}
+
+pub fn toJsonPretty(cbor_buf: []const u8, json_buf: []u8) (JsonEncodeError || Io.Writer.Error)![]const u8 {
+    var writer: Io.Writer = .fixed(json_buf);
+    var s: json.Stringify = .{
+        .writer = &writer,
+        .options = .{ .whitespace = .indent_1 },
     };
-}
-
-pub fn toJson(cbor_buf: []const u8, json_buf: []u8) (JsonEncodeError || error{NoSpaceLeft})![]const u8 {
-    var fbs = fixedBufferStream(json_buf);
-    var s = json.writeStream(fbs.writer(), .{});
     var iter: []const u8 = cbor_buf;
-    try JsonStream(@TypeOf(fbs)).jsonWriteValue(&s, &iter);
-    return fbs.getWritten();
+    try JsonWriter.jsonWriteValue(&s, &iter);
+    return writer.buffered();
 }
 
-pub fn toJsonWriter(cbor_buf: []const u8, writer: anytype, options: std.json.StringifyOptions) !void {
-    var s = json.writeStream(writer, options);
-    var iter: []const u8 = cbor_buf;
-    try JsonStreamWriter(@TypeOf(writer)).jsonWriteValue(&s, &iter);
-}
-
-pub fn toJsonAlloc(a: std.mem.Allocator, cbor_buf: []const u8) (JsonEncodeError)![]const u8 {
-    var buf = std.ArrayList(u8).init(a);
+pub fn toJsonPrettyAlloc(a: std.mem.Allocator, cbor_buf: []const u8) (JsonEncodeError || Io.Writer.Error)![]const u8 {
+    var buf = Io.Writer.Allocating.init(a);
     defer buf.deinit();
-    var s = json.writeStream(buf.writer(), .{});
+    var s: json.Stringify = .{
+        .writer = &buf.writer,
+        .options = .{ .whitespace = .indent_1 },
+    };
     var iter: []const u8 = cbor_buf;
-    try JsonStream(@TypeOf(buf)).jsonWriteValue(&s, &iter);
-    return buf.toOwnedSlice();
-}
-
-pub fn toJsonPretty(cbor_buf: []const u8, json_buf: []u8) (JsonEncodeError || error{NoSpaceLeft})![]const u8 {
-    var fbs = fixedBufferStream(json_buf);
-    var s = json.writeStream(fbs.writer(), .{ .whitespace = .indent_1 });
-    var iter: []const u8 = cbor_buf;
-    try JsonStream(@TypeOf(fbs)).jsonWriteValue(&s, &iter);
-    return fbs.getWritten();
-}
-
-pub fn toJsonPrettyAlloc(a: std.mem.Allocator, cbor_buf: []const u8) JsonEncodeError![]const u8 {
-    var buf = std.ArrayList(u8).init(a);
-    defer buf.deinit();
-    var s = json.writeStream(buf.writer(), .{ .whitespace = .indent_1 });
-    var iter: []const u8 = cbor_buf;
-    try JsonStream(@TypeOf(buf)).jsonWriteValue(&s, &iter);
+    try JsonWriter.jsonWriteValue(&s, &iter);
     return buf.toOwnedSlice();
 }
 
 pub fn toJsonOptsAlloc(a: std.mem.Allocator, cbor_buf: []const u8, opts: std.json.StringifyOptions) JsonEncodeError![]const u8 {
-    var buf = std.ArrayList(u8).init(a);
+    var buf = Io.Writer.Allocating.init(a);
     defer buf.deinit();
-    var s = json.writeStream(buf.writer(), opts);
+    var s: json.Stringify = .{ .writer = &buf.writer, .options = opts };
     var iter: []const u8 = cbor_buf;
-    try JsonStream(@TypeOf(buf)).jsonWriteValue(&s, &iter);
+    try JsonWriter.jsonWriteValue(&s, &iter);
     return buf.toOwnedSlice();
 }
 
-pub fn writeJsonValue(writer: anytype, value: json.Value) !void {
+pub fn writeJsonValue(writer: *Io.Writer, value: json.Value) !void {
     try switch (value) {
         .array => |_| unreachable,
         .object => |_| unreachable,
@@ -1434,11 +1432,11 @@ pub fn writeJsonValue(writer: anytype, value: json.Value) !void {
     };
 }
 
-fn jsonScanUntil(writer: anytype, scanner: *json.Scanner, end_token: anytype) (JsonDecodeError || @TypeOf(writer).Error)!usize {
+fn jsonScanUntil(writer: *Io.Writer, scanner: *json.Scanner, end_token: anytype) (JsonDecodeError || Io.Writer.Error)!usize {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var partial = std.ArrayList(u8).init(sfa.get());
+    var partial = std.array_list.Managed(u8).init(sfa.get());
     var count: usize = 0;
 
     var token = try scanner.next();
@@ -1494,44 +1492,43 @@ fn jsonScanUntil(writer: anytype, scanner: *json.Scanner, end_token: anytype) (J
     return count;
 }
 
-fn writeJsonArray(writer_: anytype, scanner: *json.Scanner) (JsonDecodeError || @TypeOf(writer_).Error)!void {
+fn writeJsonArray(writer_: *Io.Writer, scanner: *json.Scanner) (JsonDecodeError || Io.Writer.Error)!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var buf = std.ArrayList(u8).init(sfa.get());
-    const writer = buf.writer();
+    var buf = Io.Writer.Allocating.init(sfa.get());
+    const writer = &buf.writer;
     const count = try jsonScanUntil(writer, scanner, .array_end);
     try writeArrayHeader(writer_, count);
-    try writer_.writeAll(buf.items);
+    try writer_.writeAll(buf.written());
 }
 
-fn writeJsonObject(writer_: anytype, scanner: *json.Scanner) (JsonDecodeError || @TypeOf(writer_).Error)!void {
+fn writeJsonObject(writer_: *Io.Writer, scanner: *json.Scanner) (JsonDecodeError || Io.Writer.Error)!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var buf = std.ArrayList(u8).init(sfa.get());
-    const writer = buf.writer();
+    var buf = Io.Writer.Allocating.init(sfa.get());
+    const writer = &buf.writer;
     const count = try jsonScanUntil(writer, scanner, .object_end);
     try writeMapHeader(writer_, count / 2);
-    try writer_.writeAll(buf.items);
+    try writer_.writeAll(buf.written());
 }
 
-pub fn fromJson(json_buf: []const u8, cbor_buf: []u8) (JsonDecodeError || error{NoSpaceLeft})![]const u8 {
+pub fn fromJson(json_buf: []const u8, cbor_buf: []u8) (JsonDecodeError || Io.Writer.Error)![]const u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var stream = fixedBufferStream(cbor_buf);
-    const writer = stream.writer();
+    var writer: Io.Writer = .fixed(cbor_buf);
 
     var scanner = json.Scanner.initCompleteInput(sfa.get(), json_buf);
     defer scanner.deinit();
 
-    _ = try jsonScanUntil(writer, &scanner, .end_of_document);
-    return stream.getWritten();
+    _ = try jsonScanUntil(&writer, &scanner, .end_of_document);
+    return writer.buffered();
 }
 
 pub fn fromJsonAlloc(a: std.mem.Allocator, json_buf: []const u8) JsonDecodeError![]const u8 {
-    var stream = std.ArrayList(u8).init(a);
+    var stream = std.array_list.Managed(u8).init(a);
     defer stream.deinit();
     const writer = stream.writer();
 
