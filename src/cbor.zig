@@ -1528,13 +1528,12 @@ pub fn fromJson(json_buf: []const u8, cbor_buf: []u8) (JsonDecodeError || Io.Wri
 }
 
 pub fn fromJsonAlloc(a: std.mem.Allocator, json_buf: []const u8) JsonDecodeError![]const u8 {
-    var stream = std.array_list.Managed(u8).init(a);
+    var stream: std.Io.Writer.Allocating = .init(a);
     defer stream.deinit();
-    const writer = stream.writer();
 
     var scanner = json.Scanner.initCompleteInput(a, json_buf);
     defer scanner.deinit();
 
-    _ = try jsonScanUntil(writer, &scanner, .end_of_document);
+    _ = try jsonScanUntil(&stream.writer, &scanner, .end_of_document);
     return stream.toOwnedSlice();
 }
