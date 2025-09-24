@@ -1376,7 +1376,7 @@ pub fn toJson(cbor_buf: []const u8, json_buf: []u8) (JsonEncodeError || Io.Write
     return writer.buffered();
 }
 
-pub fn toJsonWriter(cbor_buf: []const u8, writer: *Io.Writer, options: std.json.StringifyOptions) !void {
+pub fn toJsonWriter(cbor_buf: []const u8, writer: *Io.Writer, options: std.json.Stringify.Options) !void {
     var s: json.Stringify = .{ .writer = writer, .options = options };
     var iter: []const u8 = cbor_buf;
     try JsonWriter.jsonWriteValue(&s, &iter);
@@ -1414,7 +1414,7 @@ pub fn toJsonPrettyAlloc(a: std.mem.Allocator, cbor_buf: []const u8) (JsonEncode
     return buf.toOwnedSlice();
 }
 
-pub fn toJsonOptsAlloc(a: std.mem.Allocator, cbor_buf: []const u8, opts: std.json.StringifyOptions) JsonEncodeError![]const u8 {
+pub fn toJsonOptsAlloc(a: std.mem.Allocator, cbor_buf: []const u8, opts: std.json.Stringify.Options) JsonEncodeError![]const u8 {
     var buf = Io.Writer.Allocating.init(a);
     defer buf.deinit();
     var s: json.Stringify = .{ .writer = &buf.writer, .options = opts };
