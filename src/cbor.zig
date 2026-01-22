@@ -1256,7 +1256,9 @@ fn Extractor(comptime T: type) type {
                     return false;
                 },
                 .float => return matchFloat(T, iter, self.dest),
-                .@"enum" => return matchEnum(T, iter, self.dest),
+                .@"enum" => if (@hasDecl(T, "cborExtract")) {
+                    return self.dest.cborExtract(iter);
+                } else return matchEnum(T, iter, self.dest),
                 .array => return matchArrayScalar(iter, self.dest),
                 else => if (@hasDecl(T, "cborExtract")) {
                     return self.dest.cborExtract(iter);
