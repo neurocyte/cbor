@@ -1427,8 +1427,8 @@ pub fn toJsonOptsAlloc(a: std.mem.Allocator, cbor_buf: []const u8, opts: std.jso
 
 pub fn writeJsonValue(writer: *Io.Writer, value: json.Value) !void {
     try switch (value) {
-        .array => |_| unreachable,
-        .object => |_| unreachable,
+        .array => unreachable,
+        .object => unreachable,
         .null => writeNull(writer),
         inline else => |v| writeValue(writer, v),
     };
