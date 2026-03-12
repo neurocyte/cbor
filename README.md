@@ -3,8 +3,6 @@
 A fast & flexible [CBOR (RFC 8949)](https://cbor.io/) encoding, decoding, and
 pattern-matching library for Zig 0.15+.
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/neurocyte/cbor)
-
 ---
 
 ## Features
@@ -311,8 +309,3 @@ const Timestamp = struct {
 | `decodeType(iter)`               | Decode the type header of the next value   |
 | `skipValue(iter)`                | Advance iterator past the next value       |
 | `isNull(buf)`                    | Test whether a buffer contains a CBOR null |
-
----
-
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/neurocyte/cbor)
-
