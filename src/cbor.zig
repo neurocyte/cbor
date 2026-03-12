@@ -832,9 +832,18 @@ fn skipValueType(iter: *[]const u8, t: CborType) Error!void {
         },
         7 => switch (t.type) { // special
             cbor_magic_null, cbor_magic_false, cbor_magic_true => return,
-            cbor_magic_float16 => iter.* = iter.*[2..],
-            cbor_magic_float32 => iter.* = iter.*[4..],
-            cbor_magic_float64 => iter.* = iter.*[8..],
+            cbor_magic_float16 => {
+                if (iter.len < 2) return error.TooShort;
+                iter.* = iter.*[2..];
+            },
+            cbor_magic_float32 => {
+                if (iter.len < 4) return error.TooShort;
+                iter.* = iter.*[4..];
+            },
+            cbor_magic_float64 => {
+                if (iter.len < 8) return error.TooShort;
+                iter.* = iter.*[8..];
+            },
             else => return error.InvalidType,
         },
     }
