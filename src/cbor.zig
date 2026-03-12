@@ -146,47 +146,24 @@ fn writeU64(writer: *Io.Writer, value: u64) Io.Writer.Error!void {
 }
 
 fn writeF16(writer: *Io.Writer, value: f16) Io.Writer.Error!void {
-    try write(writer, cbor_magic_float16);
-    const value_bytes = std.mem.asBytes(&value);
-    switch (native_endian) {
-        .big => try write(writer, value_bytes),
-        .little => {
-            try write(writer, value_bytes[1]);
-            try write(writer, value_bytes[0]);
-        },
-    }
+    var buf: [3]u8 = undefined;
+    buf[0] = cbor_magic_float16;
+    std.mem.writeInt(u16, buf[1..3], @bitCast(value), .big);
+    _ = try writer.write(&buf);
 }
 
 fn writeF32(writer: *Io.Writer, value: f32) Io.Writer.Error!void {
-    try write(writer, cbor_magic_float32);
-    const value_bytes = std.mem.asBytes(&value);
-    switch (native_endian) {
-        .big => try write(writer, value_bytes),
-        .little => {
-            try write(writer, value_bytes[3]);
-            try write(writer, value_bytes[2]);
-            try write(writer, value_bytes[1]);
-            try write(writer, value_bytes[0]);
-        },
-    }
+    var buf: [5]u8 = undefined;
+    buf[0] = cbor_magic_float32;
+    std.mem.writeInt(u32, buf[1..5], @bitCast(value), .big);
+    _ = try writer.write(&buf);
 }
 
 fn writeF64(writer: *Io.Writer, value: f64) Io.Writer.Error!void {
-    try write(writer, cbor_magic_float64);
-    const value_bytes = std.mem.asBytes(&value);
-    switch (native_endian) {
-        .big => try write(writer, value_bytes),
-        .little => {
-            try write(writer, value_bytes[7]);
-            try write(writer, value_bytes[6]);
-            try write(writer, value_bytes[5]);
-            try write(writer, value_bytes[4]);
-            try write(writer, value_bytes[3]);
-            try write(writer, value_bytes[2]);
-            try write(writer, value_bytes[1]);
-            try write(writer, value_bytes[0]);
-        },
-    }
+    var buf: [9]u8 = undefined;
+    buf[0] = cbor_magic_float64;
+    std.mem.writeInt(u64, buf[1..9], @bitCast(value), .big);
+    _ = try writer.write(&buf);
 }
 
 fn writeString(writer: *Io.Writer, s: []const u8) Io.Writer.Error!void {
