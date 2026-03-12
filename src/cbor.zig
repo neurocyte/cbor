@@ -663,7 +663,7 @@ fn matchStructScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool 
     const info = @typeInfo(T).@"struct";
 
     const len = decodeMapHeader(&iter) catch |err| switch (err) {
-        error.TooShort => return false,
+        error.TooShort => return err,
         error.InvalidMapType => return err,
         error.InvalidPIntType => return err,
     };
@@ -705,7 +705,7 @@ fn matchStructAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: s
     const info = @typeInfo(T).@"struct";
 
     const len = decodeMapHeader(&iter) catch |err| switch (err) {
-        error.TooShort => return false,
+        error.TooShort => return err,
         error.InvalidMapType => return err,
         error.InvalidPIntType => return err,
     };
