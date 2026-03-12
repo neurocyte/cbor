@@ -974,6 +974,10 @@ fn matchJsonValue(iter_: *[]const u8, v: *json.Value, a: std.mem.Allocator) Erro
                     v.* = json.Value{ .null = {} };
                     break :ret true;
                 },
+                cbor_magic_float16, cbor_magic_float32, cbor_magic_float64 => {
+                    v.* = json.Value{ .float = try decodeFloat(f64, &iter, t) };
+                    break :ret true;
+                },
                 else => break :ret false,
             }
         },
