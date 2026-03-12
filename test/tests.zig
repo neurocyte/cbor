@@ -397,6 +397,16 @@ test "cbor.extract_number_limits" {
     try expectError(error.IntegerTooLarge, match(m, extract(&i)));
 }
 
+test "cbor.writeValue large usize" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    const large: usize = std.math.maxInt(usize);
+    try writeValue(&writer, large);
+    var val: usize = 0;
+    try expect(try match(writer.buffered(), extract(&val)));
+    try expectEqual(large, val);
+}
+
 test "cbor.toJson" {
     var buf: [128]u8 = undefined;
     var json_buf: [128]u8 = undefined;
