@@ -297,7 +297,7 @@ pub fn writeValue(writer: *Io.Writer, value: anytype) Io.Writer.Error!void {
 
 pub fn fmt(buf: []u8, value: anytype) []const u8 {
     var writer: Io.Writer = .fixed(buf);
-    writeValue(&writer, value) catch unreachable;
+    writeValue(&writer, value) catch @panic("cbor.fmt: buffer too small");
     return writer.buffered();
 }
 
