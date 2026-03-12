@@ -339,21 +339,12 @@ pub fn decodeType(iter: *[]const u8) error{TooShort}!CborType {
     return .{ .type = type_, .minor = bits.minor, .major = bits.major };
 }
 
-fn decodeUIntLengthRecurse(iter: *[]const u8, length: usize, acc: u64) error{TooShort}!u64 {
-    if (iter.len < 1)
-        return error.TooShort;
-    const v: u8 = iter.*[0];
-    iter.* = iter.*[1..];
-    var i = acc | v;
-    if (length == 1)
-        return i;
-    i <<= 8;
-    // return @call(.always_tail, decodeUIntLengthRecurse, .{ iter, length - 1, i });  FIXME: @call(.always_tail) seems broken as of 0.11.0-dev.2964+e9cbdb2cf
-    return decodeUIntLengthRecurse(iter, length - 1, i);
-}
-
-fn decodeUIntLength(iter: *[]const u8, length: usize) !u64 {
-    return decodeUIntLengthRecurse(iter, length, 0);
+fn decodeUIntLength(iter: *[]const u8, length: usize) error{TooShort}!u64 {
+    if (iter.len < length) return error.TooShort;
+    var acc: u64 = 0;
+    for (iter.*[0..length]) |byte| acc = (acc << 8) | byte;
+    iter.* = iter.*[length..];
+    return acc;
 }
 
 fn decodePInt(iter: *[]const u8, minor: u5) error{ TooShort, InvalidPIntType }!u64 {
