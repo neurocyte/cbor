@@ -1427,12 +1427,22 @@ pub fn toJsonOptsAlloc(a: std.mem.Allocator, cbor_buf: []const u8, opts: std.jso
 }
 
 pub fn writeJsonValue(writer: *Io.Writer, value: json.Value) !void {
-    try switch (value) {
-        .array => unreachable,
-        .object => unreachable,
-        .null => writeNull(writer),
-        inline else => |v| writeValue(writer, v),
-    };
+    switch (value) {
+        .null => try writeNull(writer),
+        .array => |arr| {
+            try writeArrayHeader(writer, arr.items.len);
+            for (arr.items) |item| try writeJsonValue(writer, item);
+        },
+        .object => |obj| {
+            try writeMapHeader(writer, obj.count());
+            var it = obj.iterator();
+            while (it.next()) |entry| {
+                try writeString(writer, entry.key_ptr.*);
+                try writeJsonValue(writer, entry.value_ptr.*);
+            }
+        },
+        inline else => |v| try writeValue(writer, v),
+    }
 }
 
 fn jsonScanUntil(writer: *Io.Writer, scanner: *json.Scanner, end_token: anytype, allocator: std.mem.Allocator) (JsonDecodeError || Io.Writer.Error)!usize {
