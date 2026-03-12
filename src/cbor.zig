@@ -367,7 +367,9 @@ fn decodePInt(iter: *[]const u8, minor: u5) error{ TooShort, InvalidPIntType }!u
 }
 
 fn decodeNInt(iter: *[]const u8, minor: u5) Error!i64 {
-    return -@as(i64, @intCast(try decodePInt(iter, minor) + 1));
+    const n = try decodePInt(iter, minor);
+    if (n > maxInt(i64)) return error.IntegerTooSmall;
+    return -1 - @as(i64, @intCast(n));
 }
 
 pub fn decodeMapHeader(iter: *[]const u8) error{ TooShort, InvalidMapType, InvalidPIntType }!usize {
