@@ -459,6 +459,31 @@ test "cbor.toJsonPretty_object" {
     );
 }
 
+test "cbor encode int 1byte" {
+    var buf: [16]u8 = undefined;
+    try expectEqualDeep(fmt(&buf, @as(i64, 26)), &[_]u8{ 0x18, 0x1A });
+}
+
+test "cbor encode int 2byte" {
+    var buf: [16]u8 = undefined;
+    try expectEqualDeep(fmt(&buf, @as(i64, 263)), &[_]u8{ 0x19, 0x01, 0x07 });
+}
+
+test "cbor encode int 4byte" {
+    var buf: [16]u8 = undefined;
+    try expectEqualDeep(fmt(&buf, @as(i64, 65536)), &[_]u8{ 0x1A, 0x00, 0x01, 0x00, 0x00 });
+}
+
+test "cbor encode int 8byte" {
+    var buf: [16]u8 = undefined;
+    try expectEqualDeep(fmt(&buf, @as(i64, 263263263263263)), &[_]u8{ 0x1B, 0x00, 0x00, 0xEF, 0x6F, 0xC1, 0x4A, 0x0A, 0x1F });
+}
+
+test "cbor encode f16" {
+    var buf: [16]u8 = undefined;
+    try expectEqualDeep(fmt(&buf, @as(f16, 1.5)), &[_]u8{ 0xF9, 0x3E, 0x00 });
+}
+
 test "cbor.fromJson_small" {
     var cbor_buf: [128]u8 = undefined;
     const json_buf: []const u8 =
