@@ -776,6 +776,20 @@ test "cbor.extractAlloc optional null" {
     try expectEqual(@as(?u32, null), val);
 }
 
+test "cbor.extractAlloc json.Value array" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+    try writeValue(&writer, .{ @as(i64, 1), "hello", true });
+    var val = std.json.Value{ .null = {} };
+    try expect(try match(writer.buffered(), extractAlloc(&val, allocator)));
+    try expectEqual(@as(i64, 1), val.array.items[0].integer);
+    try expectEqualStrings("hello", val.array.items[1].string);
+    try expectEqual(true, val.array.items[2].bool);
+}
+
 fn test_value_write_and_extract(T: type, value: T) !void {
     const test_value: T = value;
     var buf: [1024]u8 = undefined;
