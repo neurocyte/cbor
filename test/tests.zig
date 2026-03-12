@@ -703,6 +703,18 @@ test "cbor.extractAlloc struct" {
     try expectEqualStrings("hello", obj.b);
 }
 
+test "cbor.extractAlloc optional null" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+    try writeValue(&writer, @as(?u32, null));
+    var val: ?u32 = 42;
+    try expect(try match(writer.buffered(), extractAlloc(&val, allocator)));
+    try expectEqual(@as(?u32, null), val);
+}
+
 fn test_value_write_and_extract(T: type, value: T) !void {
     const test_value: T = value;
     var buf: [1024]u8 = undefined;
