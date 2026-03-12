@@ -371,6 +371,15 @@ test "cbor.extract_value" {
     try expectEqualDeep(value_int.integer, 4);
 }
 
+test "cbor.extract json.Value float" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    try writeValue(&writer, @as(f64, 1.5));
+    var val = std.json.Value{ .null = {} };
+    try expect(try match(writer.buffered(), extract(&val)));
+    try expectEqual(@as(f64, 1.5), val.float);
+}
+
 test "cbor.match_more_nested" {
     var buf: [128]u8 = undefined;
     const v = .{ .{124}, .{ "three", 3 } };
