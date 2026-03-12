@@ -113,6 +113,15 @@ test "cbor.matchI64 2byte" {
     try expectEqual(iter[0], 0xDF);
 }
 
+test "cbor.matchI64 4byte" {
+    var buf = [_]u8{ 0x1A, 0x00, 0x01, 0x00, 0x00, 0xDF };
+    var iter: []const u8 = &buf;
+    var val: i64 = 0;
+    try expect(try matchInt(i64, &iter, &val));
+    try expectEqual(val, 65536);
+    try expectEqual(iter[0], 0xDF);
+}
+
 test "cbor.matchI64 8byte" {
     var buf = [_]u8{ 0x1B, 0x00, 0x00, 0xEF, 0x6F, 0xC1, 0x4A, 0x0A, 0x1F, 0xDF };
     var iter: []const u8 = &buf;
