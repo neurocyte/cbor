@@ -160,6 +160,19 @@ test "cbor.matchI64 error.TooShort" {
     try expectError(error.TooShort, result);
 }
 
+test "cbor.extract struct error.TooShort" {
+    const buf = [_]u8{0xb9}; // map(2-byte length), length bytes missing
+    var val: struct { x: i64 } = undefined;
+    try expectError(error.TooShort, match(&buf, extract(&val)));
+}
+
+test "cbor.extract union error.TooShort" {
+    const TestUnion = union(enum) { a: i64 };
+    const buf = [_]u8{0x99}; // array(2-byte length), length bytes missing
+    var val: TestUnion = undefined;
+    try expectError(error.TooShort, match(&buf, extract(&val)));
+}
+
 test "cbor.matchI64Value" {
     var buf = [_]u8{ 7, 0xDF };
     var iter: []const u8 = &buf;
