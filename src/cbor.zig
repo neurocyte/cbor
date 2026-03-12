@@ -911,7 +911,7 @@ pub fn matchValue(iter: *[]const u8, value: anytype) Error!bool {
         .pointer => |info| switch (info.size) {
             .one => matchValue(iter, value.*),
             .many, .c => matchError(T),
-            .slice => if (info.child == u8) matchStringValue(iter, value) else matchArray(iter, value, info),
+            .slice => if (info.child == u8) matchStringValue(iter, value) else matchSlice(iter, value),
         },
         .optional => if (value) |v| matchValue(iter, v) else matchNull(iter),
         .@"struct" => |info| if (info.is_tuple)
@@ -919,7 +919,7 @@ pub fn matchValue(iter: *[]const u8, value: anytype) Error!bool {
             // TODO: Add case for matching struct here
         else
             matchError(T),
-        .array => |info| if (info.child == u8) matchStringValue(iter, &value) else matchArray(iter, value, info),
+        .array => |info| if (info.child == u8) matchStringValue(iter, &value) else matchSlice(iter, &value),
         .float => matchFloatValue(T, iter, value),
         .comptime_float => matchFloatValue(f64, iter, value),
         .@"enum" => matchEnumValue(T, iter, value),
@@ -1028,6 +1028,21 @@ fn matchArray(iter_: *[]const u8, arr: anytype, info: anytype) Error!bool {
     }
     if (n == 0) iter_.* = iter;
     return n == 0;
+}
+
+fn matchSlice(iter_: *[]const u8, arr: anytype) Error!bool {
+    var iter = iter_.*;
+    const n = decodeArrayHeader(&iter) catch |e| switch (e) {
+        error.InvalidArrayType => return false,
+        error.InvalidPIntType => return e,
+        error.TooShort => return e,
+    };
+    if (n != arr.len) return false;
+    for (arr) |elem| {
+        if (!try matchValue(&iter, elem)) return false;
+    }
+    iter_.* = iter;
+    return true;
 }
 
 fn matchArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
