@@ -397,6 +397,14 @@ test "cbor.extract_number_limits" {
     try expectError(error.IntegerTooLarge, match(m, extract(&i)));
 }
 
+test "cbor.match non-u8 slice" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    const v: []const u32 = &.{ 1, 2, 3 };
+    try writeValue(&writer, v);
+    try expect(try match(writer.buffered(), v));
+}
+
 test "cbor.writeValue large usize" {
     var buf: [128]u8 = undefined;
     var writer: Io.Writer = .fixed(&buf);
