@@ -1173,6 +1173,10 @@ fn GenericExtractorAlloc(T: type) type {
                         else => extractError(T),
                     },
                     .optional => |opt_info| {
+                        if (try matchNull(iter)) {
+                            self.dest.* = null;
+                            return true;
+                        }
                         var nested: opt_info.child = undefined;
                         const extractor = GenericExtractorAlloc(opt_info.child).init(&nested, self.allocator);
                         if (try extractor.extract(iter)) {
