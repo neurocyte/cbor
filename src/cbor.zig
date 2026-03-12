@@ -93,32 +93,28 @@ fn write(writer: *Io.Writer, value: u8) Io.Writer.Error!void {
 
 fn writeTypedVal(writer: *Io.Writer, type_: u8, value: u64) Io.Writer.Error!void {
     const t: u8 = type_ << 5;
-    if (value < 24) {
-        try write(writer, t | @as(u8, @truncate(value)));
-    } else if (value < 256) {
-        try write(writer, t | 24);
-        try write(writer, @as(u8, @truncate(value)));
-    } else if (value < 65536) {
-        try write(writer, t | 25);
-        try write(writer, @as(u8, @truncate(value >> 8)));
-        try write(writer, @as(u8, @truncate(value)));
-    } else if (value < 4294967296) {
-        try write(writer, t | 26);
-        try write(writer, @as(u8, @truncate(value >> 24)));
-        try write(writer, @as(u8, @truncate(value >> 16)));
-        try write(writer, @as(u8, @truncate(value >> 8)));
-        try write(writer, @as(u8, @truncate(value)));
-    } else {
-        try write(writer, t | 27);
-        try write(writer, @as(u8, @truncate(value >> 56)));
-        try write(writer, @as(u8, @truncate(value >> 48)));
-        try write(writer, @as(u8, @truncate(value >> 40)));
-        try write(writer, @as(u8, @truncate(value >> 32)));
-        try write(writer, @as(u8, @truncate(value >> 24)));
-        try write(writer, @as(u8, @truncate(value >> 16)));
-        try write(writer, @as(u8, @truncate(value >> 8)));
-        try write(writer, @as(u8, @truncate(value)));
-    }
+    var buf: [9]u8 = undefined;
+    const slice = if (value < 24) blk: {
+        buf[0] = t | @as(u8, @truncate(value));
+        break :blk buf[0..1];
+    } else if (value < 256) blk: {
+        buf[0] = t | 24;
+        buf[1] = @truncate(value);
+        break :blk buf[0..2];
+    } else if (value < 65536) blk: {
+        buf[0] = t | 25;
+        std.mem.writeInt(u16, buf[1..3], @truncate(value), .big);
+        break :blk buf[0..3];
+    } else if (value < 4294967296) blk: {
+        buf[0] = t | 26;
+        std.mem.writeInt(u32, buf[1..5], @truncate(value), .big);
+        break :blk buf[0..5];
+    } else blk: {
+        buf[0] = t | 27;
+        std.mem.writeInt(u64, buf[1..9], value, .big);
+        break :blk buf[0..9];
+    };
+    _ = try writer.write(slice);
 }
 
 pub fn writeArrayHeader(writer: *Io.Writer, sz: usize) Io.Writer.Error!void {
