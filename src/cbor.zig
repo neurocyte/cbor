@@ -1141,7 +1141,9 @@ fn GenericExtractorAlloc(T: type) type {
         }
 
         pub fn extract(self: Self, iter: *[]const u8) Error!bool {
-            if (comptime isExtractableAlloc(T)) {
+            if (comptime T == json.Value) {
+                return matchJsonValue(iter, self.dest, self.allocator);
+            } else if (comptime isExtractableAlloc(T)) {
                 return self.dest.cborExtract(iter, self.allocator);
             } else {
                 switch (comptime @typeInfo(T)) {
