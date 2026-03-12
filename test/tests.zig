@@ -790,6 +790,19 @@ test "cbor.extractAlloc json.Value array" {
     try expectEqual(true, val.array.items[2].bool);
 }
 
+test "cbor.extractAlloc json.Value object" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    const allocator = arena.allocator();
+    defer arena.deinit();
+    try writeValue(&writer, .{ .x = @as(i64, 42), .name = "hello" });
+    var val = std.json.Value{ .null = {} };
+    try expect(try match(writer.buffered(), extractAlloc(&val, allocator)));
+    try expectEqual(@as(i64, 42), val.object.get("x").?.integer);
+    try expectEqualStrings("hello", val.object.get("name").?.string);
+}
+
 fn test_value_write_and_extract(T: type, value: T) !void {
     const test_value: T = value;
     var buf: [1024]u8 = undefined;
