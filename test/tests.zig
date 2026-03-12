@@ -130,6 +130,11 @@ test "cbor.matchI64 error.IntegerTooLarge" {
     try expectError(error.IntegerTooLarge, result);
 }
 
+test "cbor.skipValue truncated float16 returns TooShort" {
+    const buf = [_]u8{ 0xf9, 0x3C };
+    try expectError(error.TooShort, match(&buf, any));
+}
+
 test "cbor.matchI64 error.IntegerTooSmall large negative" {
     var buf = [_]u8{ 0x3B, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
     var iter: []const u8 = &buf;
