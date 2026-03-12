@@ -1435,19 +1435,17 @@ pub fn writeJsonValue(writer: *Io.Writer, value: json.Value) !void {
     };
 }
 
-fn jsonScanUntil(writer: *Io.Writer, scanner: *json.Scanner, end_token: anytype) (JsonDecodeError || Io.Writer.Error)!usize {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var partial = std.array_list.Managed(u8).init(sfa.get());
+fn jsonScanUntil(writer: *Io.Writer, scanner: *json.Scanner, end_token: anytype, allocator: std.mem.Allocator) (JsonDecodeError || Io.Writer.Error)!usize {
+    var partial = std.array_list.Managed(u8).init(allocator);
+    defer partial.deinit();
     var count: usize = 0;
 
     var token = try scanner.next();
     while (token != end_token) : (token = try scanner.next()) {
         count += 1;
         switch (token) {
-            .object_begin => try writeJsonObject(writer, scanner),
-            .array_begin => try writeJsonArray(writer, scanner),
+            .object_begin => try writeJsonObject(writer, scanner, allocator),
+            .array_begin => try writeJsonArray(writer, scanner, allocator),
 
             .true => try writeBool(writer, true),
             .false => try writeBool(writer, false),
@@ -1495,24 +1493,18 @@ fn jsonScanUntil(writer: *Io.Writer, scanner: *json.Scanner, end_token: anytype)
     return count;
 }
 
-fn writeJsonArray(writer_: *Io.Writer, scanner: *json.Scanner) (JsonDecodeError || Io.Writer.Error)!void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var buf = Io.Writer.Allocating.init(sfa.get());
-    const writer = &buf.writer;
-    const count = try jsonScanUntil(writer, scanner, .array_end);
+fn writeJsonArray(writer_: *Io.Writer, scanner: *json.Scanner, allocator: std.mem.Allocator) (JsonDecodeError || Io.Writer.Error)!void {
+    var buf = Io.Writer.Allocating.init(allocator);
+    defer buf.deinit();
+    const count = try jsonScanUntil(&buf.writer, scanner, .array_end, allocator);
     try writeArrayHeader(writer_, count);
     try writer_.writeAll(buf.written());
 }
 
-fn writeJsonObject(writer_: *Io.Writer, scanner: *json.Scanner) (JsonDecodeError || Io.Writer.Error)!void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var sfa = std.heap.stackFallback(1024, arena.allocator());
-    var buf = Io.Writer.Allocating.init(sfa.get());
-    const writer = &buf.writer;
-    const count = try jsonScanUntil(writer, scanner, .object_end);
+fn writeJsonObject(writer_: *Io.Writer, scanner: *json.Scanner, allocator: std.mem.Allocator) (JsonDecodeError || Io.Writer.Error)!void {
+    var buf = Io.Writer.Allocating.init(allocator);
+    defer buf.deinit();
+    const count = try jsonScanUntil(&buf.writer, scanner, .object_end, allocator);
     try writeMapHeader(writer_, count / 2);
     try writer_.writeAll(buf.written());
 }
@@ -1521,22 +1513,19 @@ pub fn fromJson(json_buf: []const u8, cbor_buf: []u8) (JsonDecodeError || Io.Wri
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var sfa = std.heap.stackFallback(1024, arena.allocator());
+    const allocator = sfa.get();
     var writer: Io.Writer = .fixed(cbor_buf);
-
-    var scanner = json.Scanner.initCompleteInput(sfa.get(), json_buf);
+    var scanner = json.Scanner.initCompleteInput(allocator, json_buf);
     defer scanner.deinit();
-
-    _ = try jsonScanUntil(&writer, &scanner, .end_of_document);
+    _ = try jsonScanUntil(&writer, &scanner, .end_of_document, allocator);
     return writer.buffered();
 }
 
 pub fn fromJsonAlloc(a: std.mem.Allocator, json_buf: []const u8) JsonDecodeError![]const u8 {
     var stream: std.Io.Writer.Allocating = .init(a);
     defer stream.deinit();
-
     var scanner = json.Scanner.initCompleteInput(a, json_buf);
     defer scanner.deinit();
-
-    _ = try jsonScanUntil(&stream.writer, &scanner, .end_of_document);
+    _ = try jsonScanUntil(&stream.writer, &scanner, .end_of_document, a);
     return stream.toOwnedSlice();
 }
