@@ -24,6 +24,7 @@ const isNull = cbor_mod.isNull;
 const writeArrayHeader = cbor_mod.writeArrayHeader;
 const writeMapHeader = cbor_mod.writeMapHeader;
 const writeValue = cbor_mod.writeValue;
+const writeJsonValue = cbor_mod.writeJsonValue;
 const extract = cbor_mod.extract;
 const extractAlloc = cbor_mod.extractAlloc;
 const extract_cbor = cbor_mod.extract_cbor;
@@ -685,6 +686,33 @@ test "cbor.writeValue nested union json" {
     try expectEqualStrings(json,
         \\["c",[["d",1.5],["e",5],["f"]]]
     );
+}
+
+test "cbor.writeJsonValue array" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var arr = std.json.Array.init(arena.allocator());
+    try arr.append(.{ .integer = 1 });
+    try arr.append(.{ .string = "hello" });
+    try arr.append(.{ .bool = true });
+    try writeJsonValue(&writer, .{ .array = arr });
+    var json_buf: [128]u8 = undefined;
+    try expectEqualStrings("[1,\"hello\",true]", try toJson(writer.buffered(), &json_buf));
+}
+
+test "cbor.writeJsonValue object" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var obj = std.json.ObjectMap.init(arena.allocator());
+    try obj.put("x", .{ .integer = 42 });
+    try obj.put("y", .{ .string = "hello" });
+    try writeJsonValue(&writer, .{ .object = obj });
+    var json_buf: [128]u8 = undefined;
+    try expectEqualStrings("{\"x\":42,\"y\":\"hello\"}", try toJson(writer.buffered(), &json_buf));
 }
 
 test "cbor.extract tagged union" {
