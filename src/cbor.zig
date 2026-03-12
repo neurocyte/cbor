@@ -255,7 +255,8 @@ fn writeUnion(writer: *Io.Writer, value: anytype, info: std.builtin.Type.Union) 
 pub fn writeValue(writer: *Io.Writer, value: anytype) Io.Writer.Error!void {
     const T = @TypeOf(value);
     switch (@typeInfo(T)) {
-        .int, .comptime_int => return if (T == u64) writeU64(writer, value) else writeI64(writer, @intCast(value)),
+        .int => |info| return if (info.signedness == .unsigned) writeU64(writer, @intCast(value)) else writeI64(writer, @intCast(value)),
+        .comptime_int => return if (value >= 0) writeU64(writer, @intCast(value)) else writeI64(writer, @intCast(value)),
         .bool => return writeBool(writer, value),
         .optional => return if (value) |v| writeValue(writer, v) else writeNull(writer),
         .error_union => return if (value) |v| writeValue(writer, v) else |err| writeValue(writer, err),
