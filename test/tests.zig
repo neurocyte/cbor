@@ -511,6 +511,28 @@ test "cbor.fromJson_object" {
     try expect(try match(cbor, map));
 }
 
+test "cbor.fromJson nested" {
+    // Round-trip a nested object through fromJson and back to JSON.
+    var cbor_buf: [256]u8 = undefined;
+    var json_out: [256]u8 = undefined;
+    const json_buf: []const u8 =
+        \\{"items":[1,2,3],"meta":{"count":3}}
+    ;
+    const cbor = try fromJson(json_buf, &cbor_buf);
+    try expectEqualStrings(json_buf, try toJson(cbor, &json_out));
+}
+
+test "cbor.fromJsonAlloc" {
+    // Round-trip through fromJsonAlloc and back to JSON.
+    const json_buf: []const u8 =
+        \\["hello",42,{"key":"value"}]
+    ;
+    const cbor = try fromJsonAlloc(std.testing.allocator, json_buf);
+    defer std.testing.allocator.free(cbor);
+    var json_out: [256]u8 = undefined;
+    try expectEqualStrings(json_buf, try toJson(cbor, &json_out));
+}
+
 test "cbor f32" {
     var buf: [128]u8 = undefined;
     try expectEqualDeep(
