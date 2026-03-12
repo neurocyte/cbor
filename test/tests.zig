@@ -9,6 +9,7 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const expectError = std.testing.expectError;
 
 const fmt = cbor_mod.fmt;
+const fmtBuf = cbor_mod.fmtBuf;
 const toJson = cbor_mod.toJson;
 const toJsonPretty = cbor_mod.toJsonPretty;
 const fromJson = cbor_mod.fromJson;
@@ -42,6 +43,19 @@ test "cbor simple" {
         fmt(&buf, .{ "five", 5, "four", 4, .{ "three", 3 } }),
         &[_]u8{ 0x85, 0x64, 0x66, 0x69, 0x76, 0x65, 0x05, 0x64, 0x66, 0x6f, 0x75, 0x72, 0x04, 0x82, 0x65, 0x74, 0x68, 0x72, 0x65, 0x65, 0x03 },
     );
+}
+
+test "cbor.fmtBuf success" {
+    var buf: [128]u8 = undefined;
+    try expectEqualDeep(
+        try fmtBuf(&buf, .{ "five", 5, "four", 4, .{ "three", 3 } }),
+        &[_]u8{ 0x85, 0x64, 0x66, 0x69, 0x76, 0x65, 0x05, 0x64, 0x66, 0x6f, 0x75, 0x72, 0x04, 0x82, 0x65, 0x74, 0x68, 0x72, 0x65, 0x65, 0x03 },
+    );
+}
+
+test "cbor.fmtBuf overflow" {
+    var buf: [4]u8 = undefined;
+    try expectError(error.NoSpaceLeft, fmtBuf(&buf, .{ "five", 5, "four", 4, .{ "three", 3 } }));
 }
 
 test "cbor exit message" {

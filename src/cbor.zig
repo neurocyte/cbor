@@ -301,6 +301,12 @@ pub fn fmt(buf: []u8, value: anytype) []const u8 {
     return writer.buffered();
 }
 
+pub fn fmtBuf(buf: []u8, value: anytype) Io.Writer.Error![]const u8 {
+    var writer: Io.Writer = .fixed(buf);
+    try writeValue(&writer, value);
+    return writer.buffered();
+}
+
 const CborType = struct { type: u8, minor: u5, major: u3 };
 
 pub fn decodeType(iter: *[]const u8) error{TooShort}!CborType {
