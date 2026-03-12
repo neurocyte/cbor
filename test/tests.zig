@@ -130,6 +130,13 @@ test "cbor.matchI64 error.IntegerTooLarge" {
     try expectError(error.IntegerTooLarge, result);
 }
 
+test "cbor.matchI64 error.IntegerTooSmall large negative" {
+    var buf = [_]u8{ 0x3B, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    var iter: []const u8 = &buf;
+    var val: i64 = 0;
+    try expectError(error.IntegerTooSmall, matchInt(i64, &iter, &val));
+}
+
 test "cbor.matchI64 error.TooShort" {
     var buf = [_]u8{ 0x19, 0x01 };
     var iter: []const u8 = &buf;
