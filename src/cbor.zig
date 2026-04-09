@@ -207,8 +207,7 @@ fn writeUnion(writer: *Io.Writer, value: anytype, info: std.builtin.Type.Union) 
         inline for (info.fields) |u_field| {
             const t = @field(TagType, u_field.name);
             if (value == t) {
-                const Payload = std.meta.TagPayload(T, t);
-                if (Payload != void) {
+                if (@FieldType(T, @tagName(t)) != void) {
                     try writeArrayHeader(writer, 2);
                     try writeEnum(writer, value);
                     return try writeValue(writer, @field(value, u_field.name));
@@ -577,16 +576,16 @@ fn matchUnionScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool {
 
     inline for (comptime std.meta.tags(TagType)) |t_| {
         if (t_ == unionTag) {
-            const Payload = std.meta.TagPayload(T, t_);
+            const FieldType = @FieldType(T, @tagName(t_));
 
-            if (Payload == void) {
+            if (FieldType == void) {
                 if (n != 1) return false;
                 val_.* = t_;
                 iter_.* = iter;
                 return true;
             } else {
                 if (n != 2) return false;
-                var val: Payload = undefined;
+                var val: FieldType = undefined;
                 if (try matchValue(&iter, extract(&val))) {
                     val_.* = @unionInit(T, @tagName(t_), val);
                     iter_.* = iter;
@@ -615,16 +614,16 @@ fn matchUnionAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: st
 
     inline for (comptime std.meta.tags(TagType)) |t_| {
         if (t_ == unionTag) {
-            const Payload = std.meta.TagPayload(T, t_);
+            const FieldType = @FieldType(T, @tagName(t_));
 
-            if (Payload == void) {
+            if (FieldType == void) {
                 if (n != 1) return false;
                 val_.* = t_;
                 iter_.* = iter;
                 return true;
             } else {
                 if (n != 2) return false;
-                var val: Payload = undefined;
+                var val: FieldType = undefined;
                 if (try matchValue(&iter, extractAlloc(&val, allocator))) {
                     val_.* = @unionInit(T, @tagName(t_), val);
                     iter_.* = iter;
@@ -651,7 +650,7 @@ fn matchUnionValue(comptime T: type, iter_: *[]const u8, val: T) Error!bool {
 
             if (!try matchEnumValue(std.meta.Tag(T), &iter, t)) return false;
 
-            if (std.meta.TagPayload(T, t) != void) {
+            if (@FieldType(T, @tagName(t)) != void) {
                 if (n != 2) return false;
                 if (!try matchValue(&iter, v)) return false;
             } else {

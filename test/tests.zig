@@ -55,7 +55,7 @@ test "cbor.fmtBuf success" {
 
 test "cbor.fmtBuf overflow" {
     var buf: [4]u8 = undefined;
-    try expectError(error.NoSpaceLeft, fmtBuf(&buf, .{ "five", 5, "four", 4, .{ "three", 3 } }));
+    try expectError(error.WriteFailed, fmtBuf(&buf, .{ "five", 5, "four", 4, .{ "three", 3 } }));
 }
 
 test "cbor exit message" {
