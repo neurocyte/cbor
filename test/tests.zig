@@ -369,9 +369,9 @@ test "cbor.extract_map" {
     var buf: [128]u8 = undefined;
     const v = .{ "five", 5, "four", 4, .{ .three = 3 } };
     const m = fmt(&buf, v);
-    var obj = std.json.ObjectMap.init(std.testing.allocator);
-    defer obj.deinit();
-    try expect(try match(m, .{ "five", 5, "four", 4, extract(&obj) }));
+    var obj: std.json.ObjectMap = .empty;
+    defer obj.deinit(std.testing.allocator);
+    try expect(try match(m, .{ "five", 5, "four", 4, extractAlloc(&obj, std.testing.allocator) }));
     try expect(obj.contains("three"));
     try expectEqual(obj.get("three").?, std.json.Value{ .integer = 3 });
 }
@@ -382,9 +382,9 @@ test "cbor.extract_map_map" {
     const m = fmt(&buf, v);
     var a = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer a.deinit();
-    var obj = std.json.ObjectMap.init(a.allocator());
-    defer obj.deinit();
-    try expect(try match(m, .{ "five", 5, "four", 4, extract(&obj) }));
+    var obj: std.json.ObjectMap = .empty;
+    defer obj.deinit(a.allocator());
+    try expect(try match(m, .{ "five", 5, "four", 4, extractAlloc(&obj, a.allocator()) }));
     try expect(obj.contains("three"));
     try expectEqual(obj.get("three").?, std.json.Value{ .integer = 3 });
     var child = obj.get("child").?.object;
@@ -734,9 +734,9 @@ test "cbor.writeJsonValue object" {
     var writer: Io.Writer = .fixed(&buf);
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
-    var obj = std.json.ObjectMap.init(arena.allocator());
-    try obj.put("x", .{ .integer = 42 });
-    try obj.put("y", .{ .string = "hello" });
+    var obj: std.json.ObjectMap = .empty;
+    try obj.put(arena.allocator(), "x", .{ .integer = 42 });
+    try obj.put(arena.allocator(), "y", .{ .string = "hello" });
     try writeJsonValue(&writer, .{ .object = obj });
     var json_buf: [128]u8 = undefined;
     try expectEqualStrings("{\"x\":42,\"y\":\"hello\"}", try toJson(writer.buffered(), &json_buf));

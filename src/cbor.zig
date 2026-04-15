@@ -388,7 +388,7 @@ fn decodeJsonArray(iter_: *[]const u8, minor: u5, arr: *json.Array) Error!bool {
     return true;
 }
 
-fn decodeJsonObject(iter_: *[]const u8, minor: u5, obj: *json.ObjectMap) Error!bool {
+fn decodeJsonObject(iter_: *[]const u8, minor: u5, obj: *json.ObjectMap, allocator: std.mem.Allocator) Error!bool {
     var iter = iter_.*;
     var n = try decodePInt(&iter, minor);
     while (n > 0) {
@@ -397,10 +397,10 @@ fn decodeJsonObject(iter_: *[]const u8, minor: u5, obj: *json.ObjectMap) Error!b
 
         if (!try matchString(&iter, &key))
             return false;
-        if (!try matchJsonValue(&iter, &value, obj.allocator))
+        if (!try matchJsonValue(&iter, &value, allocator))
             return false;
 
-        _ = try obj.getOrPutValue(key, value);
+        _ = try obj.getOrPutValue(allocator, key, value);
         n -= 1;
     }
     iter_.* = iter;
@@ -924,8 +924,8 @@ fn matchJsonValue(iter_: *[]const u8, v: *json.Value, a: std.mem.Allocator) Erro
             break :ret try decodeJsonArray(&iter, t.minor, &v.array);
         },
         5 => ret: { // map
-            v.* = json.Value{ .object = json.ObjectMap.init(a) };
-            break :ret try decodeJsonObject(&iter, t.minor, &v.object);
+            v.* = json.Value{ .object = .empty };
+            break :ret try decodeJsonObject(&iter, t.minor, &v.object, a);
         },
         6 => ret: { // tag
             break :ret false;
@@ -1041,14 +1041,14 @@ fn matchArrayAlloc(iter: *[]const u8, element_type: type, arr: anytype, allocato
     return true;
 }
 
-fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap) !bool {
+fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap, allocator: std.mem.Allocator) !bool {
     var iter = iter_.*;
     const t = try decodeType(&iter);
     if (t.type == cbor_magic_null)
         return true;
     if (t.major != 5)
         return error.NotAnObject;
-    const ret = try decodeJsonObject(&iter, t.minor, obj);
+    const ret = try decodeJsonObject(&iter, t.minor, obj, allocator);
     if (ret) iter_.* = iter;
     return ret;
 }
@@ -1148,6 +1148,8 @@ fn GenericExtractorAlloc(T: type) type {
         pub fn extract(self: Self, iter: *[]const u8) Error!bool {
             if (comptime T == json.Value) {
                 return matchJsonValue(iter, self.dest, self.allocator);
+            } else if (comptime T == json.ObjectMap) {
+                return matchJsonObject(iter, self.dest, self.allocator);
             } else if (comptime isExtractableAlloc(T)) {
                 return self.dest.cborExtract(iter, self.allocator);
             } else {
@@ -1209,26 +1211,11 @@ const JsonValueExtractor = struct {
     }
 };
 
-const JsonObjectExtractor = struct {
-    dest: *T,
-    const Self = @This();
-    pub const EXTRACTOR_TAG = struct {};
-    const T = json.ObjectMap;
-
-    pub fn init(dest: *T) Self {
-        return .{ .dest = dest };
-    }
-
-    pub fn extract(self: Self, iter: *[]const u8) Error!bool {
-        return matchJsonObject(iter, self.dest);
-    }
-};
-
 fn Extractor(comptime T: type) type {
     if (T == json.Value)
         return JsonValueExtractor;
     if (T == json.ObjectMap)
-        return JsonObjectExtractor;
+        return extractErrorAlloc(json.ObjectMap);
     return struct {
         dest: *T,
         const Self = @This();
