@@ -1,3 +1,37 @@
+# Release Notes — v1.2.0
+2026-04-15
+
+## Breaking Changes
+
+- **Zig 0.16.0 required**: The minimum Zig version is now **0.16.0**. Zig
+  0.15 is no longer supported.
+
+- **`extract(&obj)` removed for `json.ObjectMap`**: `std.json.ObjectMap`
+  became an unmanaged map in Zig 0.16 (allocator no longer stored internally),
+  so the non-allocating `extract(&obj)` overload cannot work. It has been
+  removed; attempting to use it now produces a compile error. Use
+  `extractAlloc(&obj, allocator)` instead:
+
+  ```zig
+  // before
+  var obj = std.json.ObjectMap.init(allocator);
+  defer obj.deinit();
+  _ = try cbor.match(buf, .{ cbor.extract(&obj) });
+
+  // after
+  var obj: std.json.ObjectMap = .empty;
+  defer obj.deinit(allocator);
+  _ = try cbor.match(buf, .{ cbor.extractAlloc(&obj, allocator) });
+  ```
+
+## Build
+
+- Minimum Zig version is now **0.16.0**.
+- All internal APIs updated for Zig 0.16 compatibility (`std.Io`, unmanaged
+  `json.ObjectMap`, `std.Io.Writer`, etc.).
+
+---
+
 # Release Notes — v1.1.0
 2026-03-12
 
