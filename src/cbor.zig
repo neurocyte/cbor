@@ -77,6 +77,10 @@ pub const more = value_type.more;
 pub const Bytes = struct {
     data: []const u8,
 
+    pub fn init(data: []const u8) Bytes {
+        return .{ .data = data };
+    }
+
     pub fn cborEncode(self: Bytes, writer: *Io.Writer) Io.Writer.Error!void {
         try writeTypedVal(writer, 2, self.data.len);
         _ = try writer.write(self.data);

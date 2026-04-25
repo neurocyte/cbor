@@ -1038,7 +1038,7 @@ test "cbor.writeValue Bytes encodes as byte string" {
     var buf: [128]u8 = undefined;
     var writer: Io.Writer = .fixed(&buf);
     const data = [_]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
-    try writeValue(&writer, cbor_mod.Bytes{ .data = &data });
+    try writeValue(&writer, cbor_mod.Bytes.init(&data));
     try expectEqualDeep(&[_]u8{ 0x44, 0xDE, 0xAD, 0xBE, 0xEF }, writer.buffered());
 
     var iter: []const u8 = writer.buffered();
@@ -1052,7 +1052,7 @@ test "cbor.writeValue Bytes encodes as byte string" {
 test "cbor.writeValue Bytes empty" {
     var buf: [128]u8 = undefined;
     var writer: Io.Writer = .fixed(&buf);
-    try writeValue(&writer, cbor_mod.Bytes{ .data = &.{} });
+    try writeValue(&writer, cbor_mod.Bytes.init(&.{}));
     try expectEqualDeep(&[_]u8{0x40}, writer.buffered());
     try expect(try match(writer.buffered(), cbor_mod.bytes));
 }
@@ -1061,7 +1061,7 @@ test "cbor.writeValue Bytes round-trips through string extractor" {
     var buf: [128]u8 = undefined;
     var writer: Io.Writer = .fixed(&buf);
     const data = [_]u8{ 0x00, 0x10, 0x20, 0x30, 0x40 };
-    try writeValue(&writer, cbor_mod.Bytes{ .data = &data });
+    try writeValue(&writer, cbor_mod.Bytes.init(&data));
     var got: []const u8 = undefined;
     try expect(try match(writer.buffered(), extract(&got)));
     try expectEqualDeep(@as([]const u8, &data), got);
@@ -1071,7 +1071,7 @@ test "cbor.writeValue Bytes inside tuple" {
     var buf: [128]u8 = undefined;
     var writer: Io.Writer = .fixed(&buf);
     const data = [_]u8{ 0x01, 0x02 };
-    try writeValue(&writer, .{ "blob", cbor_mod.Bytes{ .data = &data } });
+    try writeValue(&writer, .{ "blob", cbor_mod.Bytes.init(&data) });
     try expect(try match(writer.buffered(), .{ "blob", cbor_mod.bytes }));
 }
 
