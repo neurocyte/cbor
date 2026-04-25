@@ -72,6 +72,17 @@ pub const null_ = value_type.null;
 pub const any = value_type.any;
 pub const more = value_type.more;
 
+/// Marker type that wraps a byte slice so `writeValue` encodes it as a CBOR
+/// byte string (major type 2) instead of a UTF-8 text string (major type 3).
+pub const Bytes = struct {
+    data: []const u8,
+
+    pub fn cborEncode(self: Bytes, writer: *Io.Writer) Io.Writer.Error!void {
+        try writeTypedVal(writer, 2, self.data.len);
+        _ = try writer.write(self.data);
+    }
+};
+
 const null_value_buf = [_]u8{0xF6};
 pub const null_value: []const u8 = &null_value_buf;
 
