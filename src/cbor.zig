@@ -1026,6 +1026,14 @@ fn matchArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
     return true;
 }
 
+fn matchByteArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
+    var slice: []const u8 = undefined;
+    if (!try matchString(iter, &slice)) return false;
+    if (slice.len != arr.len) return false;
+    @memcpy(arr, slice);
+    return true;
+}
+
 fn matchArrayAlloc(iter: *[]const u8, element_type: type, arr: anytype, allocator: std.mem.Allocator) Error!bool {
     var arr_: std.ArrayListUnmanaged(element_type) = .empty;
     errdefer arr_.deinit(allocator);
@@ -1180,7 +1188,10 @@ fn GenericExtractorAlloc(T: type) type {
                     },
                     .float => return matchFloat(T, iter, self.dest),
                     .@"enum" => return matchEnum(T, iter, self.dest),
-                    .array => return matchArrayScalar(iter, self.dest),
+                    .array => |arr_info| return if (arr_info.child == u8)
+                        matchByteArrayScalar(iter, self.dest)
+                    else
+                        matchArrayScalar(iter, self.dest),
                     else => if (@hasDecl(T, "cborExtract")) {
                         return self.dest.cborExtract(iter);
                     } else switch (comptime @typeInfo(T)) {
@@ -1252,7 +1263,10 @@ fn Extractor(comptime T: type) type {
                 .@"enum" => if (@hasDecl(T, "cborExtract")) {
                     return self.dest.cborExtract(iter);
                 } else return matchEnum(T, iter, self.dest),
-                .array => return matchArrayScalar(iter, self.dest),
+                .array => |arr_info| return if (arr_info.child == u8)
+                    matchByteArrayScalar(iter, self.dest)
+                else
+                    matchArrayScalar(iter, self.dest),
                 else => if (@hasDecl(T, "cborExtract")) {
                     return self.dest.cborExtract(iter);
                 } else switch (comptime @typeInfo(T)) {

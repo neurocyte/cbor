@@ -397,6 +397,37 @@ test "cbor.extract_map_map" {
     );
 }
 
+test "cbor.extract_optional_vector_scalar" {
+    var buf: [128]u8 = undefined;
+    const v = .{ "five", 5, "four", 4, .{ 3, 2, 1 } };
+    const m = fmt(&buf, v);
+    var vec: ?[3]u32 = undefined;
+    try expect(try match(m, .{ "five", 5, "four", 4, extract(&vec) }));
+    try expectEqual(vec.?[0], 3);
+    try expectEqual(vec.?[1], 2);
+    try expectEqual(vec.?[2], 1);
+}
+
+test "cbor.extract_tagged_union_vector_scalar" {
+    const Event = union(enum) {
+        exited: u8,
+        redraw,
+        color_change: struct {
+            fg: ?[3]u8,
+            bg: ?[3]u8,
+            cursor: ?[3]u8,
+        },
+    };
+    const fg_color: ?[3]u8 = .{ 3, 2, 1 };
+
+    var buf: [128]u8 = undefined;
+    const v = .{ "VT", Event{ .color_change = .{ .fg = fg_color, .bg = null, .cursor = null } } };
+    const m = fmt(&buf, v);
+    var event: Event = undefined;
+    try expect(try match(m, .{ "VT", extract(&event) }));
+    try expect(event == .color_change);
+}
+
 test "cbor.extract_value" {
     var buf: [128]u8 = undefined;
     const v = .{ "five", 5, "four", 4, .{ .three = 3 } };
