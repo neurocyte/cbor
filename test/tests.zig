@@ -36,6 +36,7 @@ const string = cbor_mod.string;
 const number = cbor_mod.number;
 const array = cbor_mod.array;
 const map = cbor_mod.map;
+const null_ = cbor_mod.null_;
 
 test "cbor simple" {
     var buf: [128]u8 = undefined;
@@ -206,6 +207,16 @@ test "cbor.matchValue(i64) multi" {
     var iter3: []const u8 = buf[0 .. iter.len + iter2.len];
     try expect(try matchValue(&iter3, 7));
     try expect(try matchValue(&iter3, 8));
+}
+
+test "cbor.matchValue(null_) no-consume on mismatch" {
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, 42);
+    const before = iter;
+    try expect(!try matchValue(&iter, null_));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, 42));
 }
 
 test "cbor.match(.{i64...})" {

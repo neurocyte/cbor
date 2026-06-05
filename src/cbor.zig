@@ -841,9 +841,13 @@ fn matchType(iter_: *[]const u8, v: *value_type) Error!bool {
     return true;
 }
 
-fn matchValueType(iter: *[]const u8, t: value_type) Error!bool {
+fn matchValueType(iter_: *[]const u8, t: value_type) Error!bool {
+    var iter = iter_.*;
     var v: value_type = value_type.unknown;
-    return if (try matchType(iter, &v)) (t == value_type.any or t == v) else false;
+    if (!try matchType(&iter, &v)) return false;
+    if (t != value_type.any and t != v) return false;
+    iter_.* = iter;
+    return true;
 }
 
 pub fn matchString(iter_: *[]const u8, val: *[]const u8) Error!bool {
