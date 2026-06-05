@@ -1001,3 +1001,29 @@ test "read/write optional struct optional field (non-null) (null)" {
 test "read/write optional struct optional field (non-null) (non=null)" {
     try test_value_write_and_extract(?struct { field: ?usize }, .{ .field = 42 });
 }
+
+test "cbor.extractAlloc scalar field type mismatch returns false not error" {
+    const S = struct { result: u64 };
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var buf: [128]u8 = undefined;
+    const cbor_data = try fromJsonAlloc(allocator,
+        \\{"result": true}
+    );
+    _ = fmt(&buf, cbor_data); // ensure buf is used
+    var result: S = undefined;
+    try expect(!try match(cbor_data, extractAlloc(&result, allocator)));
+}
+
+test "cbor.extractAlloc slice field type mismatch returns false not error" {
+    const S = struct { result: []const u64 };
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const cbor_data = try fromJsonAlloc(allocator,
+        \\{"result": true}
+    );
+    var result: S = undefined;
+    try expect(!try match(cbor_data, extractAlloc(&result, allocator)));
+}
