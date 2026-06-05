@@ -1027,3 +1027,15 @@ test "cbor.extractAlloc slice field type mismatch returns false not error" {
     var result: S = undefined;
     try expect(!try match(cbor_data, extractAlloc(&result, allocator)));
 }
+
+test "cbor.extractAlloc slice element mismatch returns false not error" {
+    const S = struct { result: []const u64 };
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const cbor_data = try fromJsonAlloc(allocator,
+        \\{"result": [1, "oops"]}
+    );
+    var result: S = undefined;
+    try expect(!try match(cbor_data, extractAlloc(&result, allocator)));
+}
