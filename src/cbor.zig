@@ -1038,18 +1038,23 @@ fn matchByteArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
     return true;
 }
 
-fn matchArrayAlloc(iter: *[]const u8, element_type: type, arr: anytype, allocator: std.mem.Allocator) Error!bool {
+fn matchArrayAlloc(iter_: *[]const u8, element_type: type, arr: anytype, allocator: std.mem.Allocator) Error!bool {
+    var iter = iter_.*;
     var arr_: std.ArrayListUnmanaged(element_type) = .empty;
     errdefer arr_.deinit(allocator);
-    var n = try decodeArrayHeader(iter);
+    var n = decodeArrayHeader(&iter) catch |e| switch (e) {
+        error.InvalidArrayType => return false,
+        else => |err| return err,
+    };
     while (n > 0) : (n -= 1) {
         var element: element_type = undefined;
         const extractor = GenericExtractorAlloc(element_type).init(&element, allocator);
-        if (try extractor.extract(iter)) {
+        if (try extractor.extract(&iter)) {
             (try arr_.addOne(allocator)).* = element;
         } else return error.BadArrayAllocExtract;
     }
     arr.* = try arr_.toOwnedSlice(allocator);
+    iter_.* = iter;
     return true;
 }
 
