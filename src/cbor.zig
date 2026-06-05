@@ -669,7 +669,7 @@ fn matchStructScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool 
 
     const len = decodeMapHeader(&iter) catch |err| switch (err) {
         error.TooShort => return err,
-        error.InvalidMapType => return err,
+        error.InvalidMapType => return false,
         error.InvalidPIntType => return err,
     };
 
@@ -711,7 +711,7 @@ fn matchStructAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: s
 
     const len = decodeMapHeader(&iter) catch |err| switch (err) {
         error.TooShort => return err,
-        error.InvalidMapType => return err,
+        error.InvalidMapType => return false,
         error.InvalidPIntType => return err,
     };
 
@@ -1018,15 +1018,20 @@ fn matchSlice(iter_: *[]const u8, arr: anytype) Error!bool {
     return true;
 }
 
-fn matchArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
+fn matchArrayScalar(iter_: *[]const u8, arr: anytype) Error!bool {
+    var iter = iter_.*;
     var i: usize = 0;
-    var n = try decodeArrayHeader(iter);
+    var n = decodeArrayHeader(&iter) catch |e| switch (e) {
+        error.InvalidArrayType => return false,
+        else => |err| return err,
+    };
     if (n != arr.len) return false;
     while (n > 0) : (n -= 1) {
-        if (!(matchValue(iter, extract(&arr[i])) catch return false))
+        if (!(matchValue(&iter, extract(&arr[i])) catch return false))
             return false;
         i += 1;
     }
+    iter_.* = iter;
     return true;
 }
 

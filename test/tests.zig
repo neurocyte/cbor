@@ -1039,3 +1039,43 @@ test "cbor.extractAlloc slice element mismatch returns false not error" {
     var result: S = undefined;
     try expect(!try match(cbor_data, extractAlloc(&result, allocator)));
 }
+
+test "cbor.extract fixed array type mismatch returns false not error" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    try writeValue(&writer, true);
+    var result: [2]u64 = undefined;
+    try expect(!try match(writer.buffered(), extract(&result)));
+}
+
+test "cbor.extract fixed array type mismatch no-consume on mismatch" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    try writeValue(&writer, true);
+    var iter: []const u8 = writer.buffered();
+    const before = iter;
+    var result: [2]u64 = undefined;
+    try expect(!try matchValue(&iter, extract(&result)));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+}
+
+test "cbor.extract struct from non-map returns false not error" {
+    const S = struct { x: i64 };
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    try writeValue(&writer, true);
+    var result: S = undefined;
+    try expect(!try match(writer.buffered(), extract(&result)));
+}
+
+test "cbor.extractAlloc struct from non-map returns false not error" {
+    const S = struct { x: u64 };
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try writeValue(&writer, true);
+    var result: S = undefined;
+    try expect(!try match(writer.buffered(), extractAlloc(&result, arena.allocator())));
+}
