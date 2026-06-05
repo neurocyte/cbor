@@ -490,9 +490,13 @@ pub fn matchInt(comptime T: type, iter_: *[]const u8, val: *T) Error!bool {
     return true;
 }
 
-pub fn matchIntValue(comptime T: type, iter: *[]const u8, val: T) Error!bool {
+pub fn matchIntValue(comptime T: type, iter_: *[]const u8, val: T) Error!bool {
+    var iter = iter_.*;
     var v: T = 0;
-    return if (try matchInt(T, iter, &v)) v == val else false;
+    if (!try matchInt(T, &iter, &v)) return false;
+    if (v != val) return false;
+    iter_.* = iter;
+    return true;
 }
 
 pub fn matchNull(iter_: *[]const u8) Error!bool {
@@ -524,9 +528,13 @@ pub fn matchBool(iter_: *[]const u8, v: *bool) Error!bool {
     return false;
 }
 
-fn matchBoolValue(iter: *[]const u8, val: bool) Error!bool {
+fn matchBoolValue(iter_: *[]const u8, val: bool) Error!bool {
+    var iter = iter_.*;
     var v: bool = false;
-    return if (try matchBool(iter, &v)) v == val else false;
+    if (!try matchBool(&iter, &v)) return false;
+    if (v != val) return false;
+    iter_.* = iter;
+    return true;
 }
 
 fn matchFloat(comptime T: type, iter_: *[]const u8, v: *T) Error!bool {
@@ -540,9 +548,13 @@ fn matchFloat(comptime T: type, iter_: *[]const u8, v: *T) Error!bool {
     return true;
 }
 
-fn matchFloatValue(comptime T: type, iter: *[]const u8, val: T) Error!bool {
+fn matchFloatValue(comptime T: type, iter_: *[]const u8, val: T) Error!bool {
+    var iter = iter_.*;
     var v: T = 0.0;
-    return if (try matchFloat(T, iter, &v)) v == val else false;
+    if (!try matchFloat(T, &iter, &v)) return false;
+    if (v != val) return false;
+    iter_.* = iter;
+    return true;
 }
 
 pub fn matchEnum(comptime T: type, iter_: *[]const u8, val: *T) Error!bool {
@@ -862,9 +874,13 @@ pub fn matchString(iter_: *[]const u8, val: *[]const u8) Error!bool {
     return true;
 }
 
-fn matchStringValue(iter: *[]const u8, lit: []const u8) Error!bool {
+fn matchStringValue(iter_: *[]const u8, lit: []const u8) Error!bool {
+    var iter = iter_.*;
     var val: []const u8 = undefined;
-    return if (try matchString(iter, &val)) eql(u8, val, lit) else false;
+    if (!try matchString(&iter, &val)) return false;
+    if (!eql(u8, val, lit)) return false;
+    iter_.* = iter;
+    return true;
 }
 
 fn matchError(comptime T: type) noreturn {
@@ -1035,11 +1051,13 @@ fn matchArrayScalar(iter_: *[]const u8, arr: anytype) Error!bool {
     return true;
 }
 
-fn matchByteArrayScalar(iter: *[]const u8, arr: anytype) Error!bool {
+fn matchByteArrayScalar(iter_: *[]const u8, arr: anytype) Error!bool {
+    var iter = iter_.*;
     var slice: []const u8 = undefined;
-    if (!try matchString(iter, &slice)) return false;
+    if (!try matchString(&iter, &slice)) return false;
     if (slice.len != arr.len) return false;
     @memcpy(arr, slice);
+    iter_.* = iter;
     return true;
 }
 
