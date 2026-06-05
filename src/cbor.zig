@@ -1051,7 +1051,10 @@ fn matchArrayAlloc(iter_: *[]const u8, element_type: type, arr: anytype, allocat
         const extractor = GenericExtractorAlloc(element_type).init(&element, allocator);
         if (try extractor.extract(&iter)) {
             (try arr_.addOne(allocator)).* = element;
-        } else return error.BadArrayAllocExtract;
+        } else {
+            arr_.deinit(allocator);
+            return false;
+        }
     }
     arr.* = try arr_.toOwnedSlice(allocator);
     iter_.* = iter;
