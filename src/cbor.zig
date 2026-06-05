@@ -1087,10 +1087,13 @@ fn matchArrayAlloc(iter_: *[]const u8, element_type: type, arr: anytype, allocat
 fn matchJsonObject(iter_: *[]const u8, obj: *json.ObjectMap, allocator: std.mem.Allocator) !bool {
     var iter = iter_.*;
     const t = try decodeType(&iter);
-    if (t.type == cbor_magic_null)
+    if (t.type == cbor_magic_null) {
+        obj.* = .empty;
+        iter_.* = iter;
         return true;
+    }
     if (t.major != 5)
-        return error.NotAnObject;
+        return false;
     const ret = try decodeJsonObject(&iter, t.minor, obj, allocator);
     if (ret) iter_.* = iter;
     return ret;

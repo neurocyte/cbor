@@ -1143,3 +1143,26 @@ test "cbor.extractAlloc struct from non-map returns false not error" {
     var result: S = undefined;
     try expect(!try match(writer.buffered(), extractAlloc(&result, arena.allocator())));
 }
+
+test "cbor.extractAlloc ObjectMap from null advances iterator" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try writeValue(&writer, @as(?u32, null));
+    try writeValue(&writer, @as(u32, 99));
+    var iter: []const u8 = writer.buffered();
+    var obj: std.json.ObjectMap = .empty;
+    try expect(try matchValue(&iter, extractAlloc(&obj, arena.allocator())));
+    try expect(try matchValue(&iter, @as(u32, 99)));
+}
+
+test "cbor.extractAlloc ObjectMap from non-map returns false not error" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try writeValue(&writer, true);
+    var obj: std.json.ObjectMap = .empty;
+    try expect(!try match(writer.buffered(), extractAlloc(&obj, arena.allocator())));
+}
