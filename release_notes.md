@@ -1,4 +1,36 @@
+# Release Notes — v1.3.0
+
+2026-06-05
+
+## Bug Fixes
+
+This is a bug fixing and error return clean-up release.
+
+### Iterator preservation on failed match
+
+All `match*` functions now leave the iterator unchanged when they return
+`false`, so that callers can try alternative patterns at the same stream
+position. Several functions were advancing the iterator before confirming a
+full match and then returning `false` without restoring it.
+
+### Type mismatches always return false instead of errors
+
+Several functions returned a typed error when the CBOR input was simply the
+wrong type, where `false` is the correct and expected result. This caused
+`match` and `extract` calls to propagate an error rather than gracefully
+failing the match.
+
+### Fixed-size byte array extraction
+
+`extract` and `extractAlloc` for `[N]u8` destinations were incorrectly
+routing through `matchArrayScalar`, which expected a CBOR array. They now
+use `matchByteArrayScalar`, which correctly decodes a CBOR string or bytes
+value and copies it into the fixed-size array.
+
+---
+
 # Release Notes — v1.2.0
+
 2026-04-15
 
 ## Breaking Changes
