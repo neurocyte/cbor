@@ -39,10 +39,10 @@ value and copies it into the fixed-size array.
   0.15 is no longer supported.
 
 - **`extract(&obj)` removed for `json.ObjectMap`**: `std.json.ObjectMap`
-  became an unmanaged map in Zig 0.16 (allocator no longer stored internally),
-  so the non-allocating `extract(&obj)` overload cannot work. It has been
-  removed; attempting to use it now produces a compile error. Use
-  `extractAlloc(&obj, allocator)` instead:
+  became an unmanaged map in Zig 0.16 (allocator no longer stored
+  internally), so the non-allocating `extract(&obj)` overload cannot work.
+  It has been removed; attempting to use it now produces a compile error.
+  Use `extractAlloc(&obj, allocator)` instead:
 
   ```zig
   // before
@@ -65,15 +65,16 @@ value and copies it into the fixed-size array.
 ---
 
 # Release Notes — v1.1.0
+
 2026-03-12
 
 ## Features
 
-- **Custom encoder hooks**: Types can implement `cborEncode(writer: *Io.Writer) !void`
-  to control their own serialisation.
-- **Custom extractor hooks**: Types can implement `cborExtract(iter: *[]const u8) !bool`
-  to control their own deserialisation. Enum types are
-  now also supported via `cborExtract`.
+- **Custom encoder hooks**: Types can implement
+  `cborEncode(writer: *Io.Writer) !void` to control their own serialisation.
+- **Custom extractor hooks**: Types can implement
+  `cborExtract(iter: *[]const u8) !bool` to control their own
+  deserialisation. Enum types are now also supported via `cborExtract`.
 - **`extractAlloc`**: New allocating extractor for types containing slices
   or heap-allocated payloads. Use `extractAlloc(&dest, allocator)` inside a
   `match` pattern.
@@ -85,8 +86,9 @@ value and copies it into the fixed-size array.
   supported.
 - **`fmtBuf`**: New `fmtBuf(buf, value) ![]const u8` — like `fmt` but
   returns `error.NoSpaceLeft` instead of panicking on overflow.
-- **`fmt` explicit panic**: `fmt` now calls `@panic("cbor.fmt: buffer too small")`
-  on overflow rather than `catch unreachable`.
+- **`fmt` explicit panic**: `fmt` now calls
+  `@panic("cbor.fmt: buffer too small")` on overflow rather than
+  `catch unreachable`.
 - **Non-u8 slice matching**: `match` now supports patterns of the form
   `&[_]T{...}` for slices and arrays where the element type is not `u8`.
 - **`writeJsonValue` arrays and objects**: `writeJsonValue` now handles
