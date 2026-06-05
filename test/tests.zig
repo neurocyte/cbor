@@ -219,6 +219,70 @@ test "cbor.matchValue(null_) no-consume on mismatch" {
     try expect(try matchValue(&iter, 42));
 }
 
+test "cbor.matchValue(i64) no-consume on value mismatch" {
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, 43);
+    const before = iter;
+    try expect(!try matchValue(&iter, 42));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, 43));
+}
+
+test "cbor.matchValue(bool) no-consume on value mismatch" {
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, false);
+    const before = iter;
+    try expect(!try matchValue(&iter, true));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, false));
+}
+
+test "cbor.matchValue(f64) no-consume on value mismatch" {
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, @as(f64, 1.5));
+    const before = iter;
+    try expect(!try matchValue(&iter, @as(f64, 2.5)));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, @as(f64, 1.5)));
+}
+
+test "cbor.matchValue(string) no-consume on value mismatch" {
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, "bar");
+    const before = iter;
+    try expect(!try matchValue(&iter, "foo"));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, "bar"));
+}
+
+test "cbor.matchValue(enum) no-consume on value mismatch" {
+    const E = enum { a, b };
+    var buf: [128]u8 = undefined;
+    var iter = fmt(&buf, E.b);
+    const before = iter;
+    try expect(!try matchValue(&iter, E.a));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+    try expect(try matchValue(&iter, E.b));
+}
+
+test "cbor.extract byte array length mismatch no-consume" {
+    var buf: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&buf);
+    try writeValue(&writer, "ab");
+    var iter: []const u8 = writer.buffered();
+    const before = iter;
+    var result: [3]u8 = undefined;
+    try expect(!try matchValue(&iter, extract(&result)));
+    try expectEqual(before.len, iter.len);
+    try expectEqual(before.ptr, iter.ptr);
+}
+
+
 test "cbor.match(.{i64...})" {
     var buf: [128]u8 = undefined;
     const v = .{ 5, 4, 3, 123456, 234567890 };
