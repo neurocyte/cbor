@@ -128,10 +128,10 @@ pub fn writeMapHeader(writer: *Io.Writer, sz: usize) Io.Writer.Error!void {
 pub fn writeArray(writer: *Io.Writer, args: anytype) Io.Writer.Error!void {
     const args_type_info = @typeInfo(@TypeOf(args));
     if (args_type_info != .@"struct") @compileError("expected tuple or struct argument");
-    const fields_info = args_type_info.@"struct".fields;
-    try writeArrayHeader(writer, fields_info.len);
-    inline for (fields_info) |field_info|
-        try writeValue(writer, @field(args, field_info.name));
+    const field_names = args_type_info.@"struct".field_names;
+    try writeArrayHeader(writer, field_names.len);
+    inline for (field_names) |field_name|
+        try writeValue(writer, @field(args, field_name));
 }
 
 fn writeI64(writer: *Io.Writer, value: i64) Io.Writer.Error!void {
@@ -204,13 +204,13 @@ fn writeUnion(writer: *Io.Writer, value: anytype, info: std.builtin.Type.Union) 
         return value.cborEncode(writer);
     }
     if (info.tag_type) |TagType| {
-        inline for (info.fields) |u_field| {
-            const t = @field(TagType, u_field.name);
+        inline for (info.field_names) |u_field_name| {
+            const t = @field(TagType, u_field_name);
             if (value == t) {
                 if (@FieldType(T, @tagName(t)) != void) {
                     try writeArrayHeader(writer, 2);
                     try writeEnum(writer, value);
-                    return try writeValue(writer, @field(value, u_field.name));
+                    return try writeValue(writer, @field(value, u_field_name));
                 } else {
                     try writeArrayHeader(writer, 1);
                     try writeEnum(writer, value);
@@ -239,16 +239,16 @@ pub fn writeValue(writer: *Io.Writer, value: anytype) Io.Writer.Error!void {
                 return value.cborEncode(writer);
             }
             if (info.is_tuple) {
-                if (info.fields.len == 0) return writeNull(writer);
-                try writeArrayHeader(writer, info.fields.len);
-                inline for (info.fields) |f|
-                    try writeValue(writer, @field(value, f.name));
+                if (info.field_names.len == 0) return writeNull(writer);
+                try writeArrayHeader(writer, info.field_names.len);
+                inline for (info.field_names) |f_name|
+                    try writeValue(writer, @field(value, f_name));
             } else {
-                if (info.fields.len == 0) return writeNull(writer);
-                try writeMapHeader(writer, info.fields.len);
-                inline for (info.fields) |f| {
-                    try writeString(writer, f.name);
-                    try writeValue(writer, @field(value, f.name));
+                if (info.field_names.len == 0) return writeNull(writer);
+                try writeMapHeader(writer, info.field_names.len);
+                inline for (info.field_names) |f_name| {
+                    try writeString(writer, f_name);
+                    try writeValue(writer, @field(value, f_name));
                 }
             }
         },
@@ -685,9 +685,9 @@ fn matchStructScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool 
         error.InvalidPIntType => return err,
     };
 
-    if (len != info.fields.len) return false;
+    if (len != info.field_names.len) return false;
 
-    if (info.fields.len == 0) {
+    if (info.field_names.len == 0) {
         iter_.* = iter;
         val_.* = .{};
         return true;
@@ -695,15 +695,15 @@ fn matchStructScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool 
 
     var val: T = undefined;
 
-    fields: for (0..info.fields.len) |_| {
+    fields: for (0..info.field_names.len) |_| {
         var fieldName: []const u8 = undefined;
         if (!try matchString(&iter, &fieldName)) return false;
 
-        inline for (info.fields) |f| {
-            if (std.mem.eql(u8, f.name, fieldName)) {
-                var fieldVal: @FieldType(T, f.name) = undefined;
+        inline for (info.field_names) |f_name| {
+            if (std.mem.eql(u8, f_name, fieldName)) {
+                var fieldVal: @FieldType(T, f_name) = undefined;
                 if (!try matchValue(&iter, extract(&fieldVal))) return false;
-                @field(val, f.name) = fieldVal;
+                @field(val, f_name) = fieldVal;
                 continue :fields;
             }
         }
@@ -727,9 +727,9 @@ fn matchStructAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: s
         error.InvalidPIntType => return err,
     };
 
-    if (len != info.fields.len) return false;
+    if (len != info.field_names.len) return false;
 
-    if (info.fields.len == 0) {
+    if (info.field_names.len == 0) {
         iter_.* = iter;
         val_.* = .{};
         return true;
@@ -737,15 +737,15 @@ fn matchStructAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: s
 
     var val: T = undefined;
 
-    for (0..info.fields.len) |_| {
+    for (0..info.field_names.len) |_| {
         var fieldName: []const u8 = undefined;
         if (!try matchString(&iter, &fieldName)) return false;
 
-        inline for (info.fields) |f| {
-            if (std.mem.eql(u8, f.name, fieldName)) {
-                var fieldVal: @FieldType(T, f.name) = undefined;
+        inline for (info.field_names) |f_name| {
+            if (std.mem.eql(u8, f_name, fieldName)) {
+                var fieldVal: @FieldType(T, f_name) = undefined;
                 if (!try matchValue(&iter, extractAlloc(&fieldVal, allocator))) return false;
-                @field(val, f.name) = fieldVal;
+                @field(val, f_name) = fieldVal;
                 break;
             }
         } else return false;
@@ -995,14 +995,14 @@ fn matchArray(iter_: *[]const u8, arr: anytype, info: anytype) Error!bool {
         error.InvalidPIntType => return e,
         error.TooShort => return e,
     };
-    inline for (info.fields) |f| {
-        const value = @field(arr, f.name);
+    inline for (info.field_names) |f_name| {
+        const value = @field(arr, f_name);
         if (isMore(value))
             break;
-    } else if (info.fields.len != n)
+    } else if (info.field_names.len != n)
         return false;
-    inline for (info.fields) |f| {
-        const value = @field(arr, f.name);
+    inline for (info.field_names) |f_name| {
+        const value = @field(arr, f_name);
         if (isMore(value))
             if (try matchArrayMore(&iter, n)) {
                 iter_.* = iter;
@@ -1011,7 +1011,7 @@ fn matchArray(iter_: *[]const u8, arr: anytype, info: anytype) Error!bool {
                 return false;
             };
         if (n == 0) return false;
-        const matched = try matchValue(&iter, @field(arr, f.name));
+        const matched = try matchValue(&iter, @field(arr, f_name));
         if (!matched) return false;
         n -= 1;
     }
@@ -1114,8 +1114,8 @@ fn extractErrorAlloc(comptime T: type) noreturn {
 
 fn hasExtractorTag(info: anytype) bool {
     if (info.is_tuple) return false;
-    inline for (info.decls) |decl| {
-        if (comptime eql(u8, decl.name, "EXTRACTOR_TAG"))
+    inline for (info.decl_names) |decl_name| {
+        if (comptime eql(u8, decl_name, "EXTRACTOR_TAG"))
             return true;
     }
     return false;
@@ -1135,8 +1135,8 @@ fn ExtractDef(comptime T: type) type {
 fn hasExtractMethod(T: type, info: anytype) bool {
     const result = blk: {
         if (info.is_tuple) break :blk false;
-        for (info.decls) |decl| {
-            if (std.mem.eql(u8, decl.name, "cborExtract") and @TypeOf(@field(T, decl.name)) == ExtractDef(T))
+        for (info.decl_names) |decl_name| {
+            if (std.mem.eql(u8, decl_name, "cborExtract") and @TypeOf(@field(T, decl_name)) == ExtractDef(T))
                 break :blk true;
         }
         break :blk false;
@@ -1161,8 +1161,8 @@ fn ExtractAllocDef(comptime T: type) type {
 fn hasExtractMethodAlloc(T: type, info: anytype) bool {
     const result = blk: {
         if (@hasField(@TypeOf(info), "is_tuple") and info.is_tuple) break :blk false;
-        for (info.decls) |decl| {
-            if (std.mem.eql(u8, decl.name, "cborExtract") and @TypeOf(@field(T, decl.name)) == ExtractAllocDef(T))
+        for (info.decl_names) |decl_name| {
+            if (std.mem.eql(u8, decl_name, "cborExtract") and @TypeOf(@field(T, decl_name)) == ExtractAllocDef(T))
                 break :blk true;
         }
         break :blk false;
@@ -1566,8 +1566,10 @@ fn writeJsonObject(writer_: *Io.Writer, scanner: *json.Scanner, allocator: std.m
 pub fn fromJson(json_buf: []const u8, cbor_buf: []u8) (JsonDecodeError || Io.Writer.Error)![]const u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
-    var sfa = std.heap.stackFallback(1024, arena.allocator());
-    const allocator = sfa.get();
+    var buffer: [1024]u8 = undefined;
+    var bfa: std.heap.BufferFirstAllocator = .init(&buffer, arena.allocator());
+    
+    const allocator = bfa.allocator();
     var writer: Io.Writer = .fixed(cbor_buf);
     var scanner = json.Scanner.initCompleteInput(allocator, json_buf);
     defer scanner.deinit();

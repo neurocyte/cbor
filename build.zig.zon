@@ -2,7 +2,7 @@
     .name = .cbor,
     .version = "1.3.0",
     .fingerprint = 0x1feaffc7fc04c445,
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0-dev.812+5434f85c4",
 
     .paths = .{
         "src",
