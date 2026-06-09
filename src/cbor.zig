@@ -1583,3 +1583,14 @@ pub fn fromJsonAlloc(a: std.mem.Allocator, json_buf: []const u8) JsonDecodeError
     _ = try jsonScanUntil(&stream.writer, &scanner, .end_of_document, a);
     return stream.toOwnedSlice();
 }
+
+pub const Raw = struct {
+    bytes: []const u8 = &.{},
+    pub fn cborEncode(self: @This(), writer: *std.Io.Writer) std.Io.Writer.Error!void {
+        _ = try writer.writeAll(self.bytes);
+    }
+    pub fn cborExtract(self: *@This(), iter: *[]const u8) Error!bool {
+        return try matchValue(iter, extract_cbor(&self.bytes));
+    }
+    pub const empty: @This() = .{};
+};

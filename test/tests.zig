@@ -29,6 +29,7 @@ const writeJsonValue = cbor_mod.writeJsonValue;
 const extract = cbor_mod.extract;
 const extractAlloc = cbor_mod.extractAlloc;
 const extract_cbor = cbor_mod.extract_cbor;
+const Raw = cbor_mod.Raw;
 
 const more = cbor_mod.more;
 const any = cbor_mod.any;
@@ -282,7 +283,6 @@ test "cbor.extract byte array length mismatch no-consume" {
     try expectEqual(before.ptr, iter.ptr);
 }
 
-
 test "cbor.match(.{i64...})" {
     var buf: [128]u8 = undefined;
     const v = .{ 5, 4, 3, 123456, 234567890 };
@@ -408,6 +408,22 @@ test "cbor.extract_cbor" {
     var sub: []const u8 = undefined;
     try expect(try match(m, .{ "five", 5, "four", 4, extract_cbor(&sub) }));
     try expect(try match(sub, .{ "three", 3 }));
+}
+
+test "cbor.extract Raw" {
+    var buf: [128]u8 = undefined;
+    const v = .{ "five", 5, "four", 4, .{ "three", 3 } };
+    const m = fmt(&buf, v);
+
+    try expect(try match(m, .{ "five", 5, "four", 4, .{ "three", 3 } }));
+
+    var raw: Raw = .empty;
+    try expect(try match(m, .{ "five", 5, "four", 4, extract(&raw) }));
+    try expect(try match(raw.bytes, .{ "three", 3 }));
+
+    var buf2: [128]u8 = undefined;
+    const m2 = fmt(&buf2, .{ "five", 5, raw, "four", 4 });
+    try expect(try match(m2, .{ "five", 5, .{ "three", 3 }, "four", 4 }));
 }
 
 test "cbor.extract_nested" {
