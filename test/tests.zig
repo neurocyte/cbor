@@ -1075,6 +1075,18 @@ test "cbor.writeValue Bytes inside tuple" {
     try expect(try match(writer.buffered(), .{ "blob", cbor_mod.bytes }));
 }
 
+test "cbor.extract Bytes" {
+    var buf: [128]u8 = undefined;
+    const data = [_]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
+    const v = .{ "five", 5, cbor_mod.Bytes.init(&data), "four", 4 };
+    const m = fmt(&buf, v);
+
+    var bytes: cbor_mod.Bytes = undefined;
+    try expect(try match(m, .{ "five", 5, extract(&bytes), "four", 4 }));
+
+    try expectEqualDeep(&[_]u8{ 0xDE, 0xAD, 0xBE, 0xEF }, bytes.data);
+}
+
 test "read/write optional bool (null)" {
     try test_value_write_and_extract(?bool, null);
 }

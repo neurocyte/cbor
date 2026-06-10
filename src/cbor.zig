@@ -75,16 +75,19 @@ pub const more = value_type.more;
 /// Marker type that wraps a byte slice so `writeValue` encodes it as a CBOR
 /// byte string (major type 2) instead of a UTF-8 text string (major type 3).
 pub const Bytes = struct {
-    data: []const u8,
+    data: []const u8 = &.{},
 
     pub fn init(data: []const u8) Bytes {
         return .{ .data = data };
     }
-
     pub fn cborEncode(self: Bytes, writer: *Io.Writer) Io.Writer.Error!void {
         try writeTypedVal(writer, 2, self.data.len);
         _ = try writer.write(self.data);
     }
+    pub fn cborExtract(self: *@This(), iter: *[]const u8) Error!bool {
+        return try matchBytes(iter, &self.data);
+    }
+    pub const empty: @This() = .{};
 };
 
 const null_value_buf = [_]u8{0xF6};
@@ -894,6 +897,17 @@ fn matchStringValue(iter_: *[]const u8, lit: []const u8) Error!bool {
     var val: []const u8 = undefined;
     if (!try matchString(&iter, &val)) return false;
     if (!eql(u8, val, lit)) return false;
+    iter_.* = iter;
+    return true;
+}
+
+pub fn matchBytes(iter_: *[]const u8, val: *[]const u8) Error!bool {
+    var iter = iter_.*;
+    const t = try decodeType(&iter);
+    val.* = switch (t.major) {
+        2 => try decodeBytes(&iter, t.minor), // bytes
+        else => return false,
+    };
     iter_.* = iter;
     return true;
 }
