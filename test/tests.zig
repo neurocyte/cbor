@@ -189,6 +189,45 @@ test "cbor.extract union error.TooShort" {
     try expectError(error.TooShort, match(&buf, extract(&val)));
 }
 
+test "cbor.extract tuple round-trip" {
+    const Tuple = struct { i64, []const u8, bool };
+    const value: Tuple = .{ 42, "hi", true };
+    var buf: [128]u8 = undefined;
+    const encoded = try fmtBuf(&buf, value);
+    var out: Tuple = undefined;
+    try expect(try match(encoded, extract(&out)));
+    try expectEqual(value.@"0", out.@"0");
+    try expectEqualStrings(value.@"1", out.@"1");
+    try expectEqual(value.@"2", out.@"2");
+}
+
+test "cbor.extract nested tuple round-trip" {
+    const Inner = struct { i64, i64 };
+    const Outer = struct { i64, Inner };
+    const value: Outer = .{ 7, .{ 1, 2 } };
+    var buf: [128]u8 = undefined;
+    const encoded = try fmtBuf(&buf, value);
+    var out: Outer = undefined;
+    try expect(try match(encoded, extract(&out)));
+    try expectEqual(value.@"0", out.@"0");
+    try expectEqual(value.@"1".@"0", out.@"1".@"0");
+    try expectEqual(value.@"1".@"1", out.@"1".@"1");
+}
+
+test "cbor.extract tuple arity mismatch returns false" {
+    var buf: [128]u8 = undefined;
+    const encoded = try fmtBuf(&buf, .{ @as(i64, 1), @as(i64, 2) }); // 2 elements
+    var out: struct { i64, i64, i64 } = undefined; // expects 3
+    try expect(!try match(encoded, extract(&out)));
+}
+
+test "cbor.extract tuple from non-array returns false" {
+    var buf: [128]u8 = undefined;
+    const encoded = try fmtBuf(&buf, .{ .x = @as(i64, 1) }); // a map, not an array
+    var out: struct { i64 } = undefined;
+    try expect(!try match(encoded, extract(&out)));
+}
+
 test "cbor.matchI64Value" {
     var buf = [_]u8{ 7, 0xDF };
     var iter: []const u8 = &buf;

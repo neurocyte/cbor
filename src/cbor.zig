@@ -775,6 +775,64 @@ fn matchStructAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: s
     return true;
 }
 
+fn matchTupleScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool {
+    var iter = iter_.*;
+    const info = @typeInfo(T).@"struct";
+
+    const len = decodeArrayHeader(&iter) catch |err| switch (err) {
+        error.InvalidArrayType => return false,
+        else => |e| return e,
+    };
+
+    if (len != info.fields.len) return false;
+
+    if (info.fields.len == 0) {
+        iter_.* = iter;
+        val_.* = .{};
+        return true;
+    }
+
+    var val: T = undefined;
+
+    inline for (info.fields) |f| {
+        if (!try matchValue(&iter, extract(&@field(val, f.name)))) return false;
+    }
+
+    val_.* = val;
+    iter_.* = iter;
+
+    return true;
+}
+
+fn matchTupleAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: std.mem.Allocator) Error!bool {
+    var iter = iter_.*;
+    const info = @typeInfo(T).@"struct";
+
+    const len = decodeArrayHeader(&iter) catch |err| switch (err) {
+        error.InvalidArrayType => return false,
+        else => |e| return e,
+    };
+
+    if (len != info.fields.len) return false;
+
+    if (info.fields.len == 0) {
+        iter_.* = iter;
+        val_.* = .{};
+        return true;
+    }
+
+    var val: T = undefined;
+
+    inline for (info.fields) |f| {
+        if (!try matchValue(&iter, extractAlloc(&@field(val, f.name), allocator))) return false;
+    }
+
+    val_.* = val;
+    iter_.* = iter;
+
+    return true;
+}
+
 fn skipString(iter: *[]const u8, minor: u5) Error!void {
     const len: usize = @intCast(try decodePInt(iter, minor));
     if (iter.len < len)
@@ -1263,7 +1321,10 @@ fn GenericExtractorAlloc(T: type) type {
                         return self.dest.cborExtract(iter);
                     } else switch (comptime @typeInfo(T)) {
                         .@"union" => return matchUnionAlloc(T, iter, self.dest, self.allocator),
-                        .@"struct" => return matchStructAlloc(T, iter, self.dest, self.allocator),
+                        .@"struct" => |s_info| return if (s_info.is_tuple)
+                            matchTupleAlloc(T, iter, self.dest, self.allocator)
+                        else
+                            matchStructAlloc(T, iter, self.dest, self.allocator),
                         else => @compileError(@typeName(T) ++ " (" ++ @tagName(@typeInfo(T)) ++ ") is and unsupported or invalid type for cbor extract, or implement cborExtract function"),
                     },
                 }
@@ -1338,7 +1399,10 @@ fn Extractor(comptime T: type) type {
                     return self.dest.cborExtract(iter);
                 } else switch (comptime @typeInfo(T)) {
                     .@"union" => return matchUnionScalar(T, iter, self.dest),
-                    .@"struct" => return matchStructScalar(T, iter, self.dest),
+                    .@"struct" => |s_info| return if (s_info.is_tuple)
+                        matchTupleScalar(T, iter, self.dest)
+                    else
+                        matchStructScalar(T, iter, self.dest),
                     else => @compileError("cannot extract type " ++ @typeName(T)),
                 },
             }
