@@ -1325,7 +1325,7 @@ fn GenericExtractorAlloc(T: type) type {
                             matchTupleAlloc(T, iter, self.dest, self.allocator)
                         else
                             matchStructAlloc(T, iter, self.dest, self.allocator),
-                        else => @compileError(@typeName(T) ++ " (" ++ @tagName(@typeInfo(T)) ++ ") is and unsupported or invalid type for cbor extract, or implement cborExtract function"),
+                        else => @compileError(@typeName(T) ++ " (" ++ @tagName(@typeInfo(T)) ++ ") is an unsupported or invalid type for cbor extract, or implement cborExtract function"),
                     },
                 }
             }
