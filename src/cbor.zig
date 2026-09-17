@@ -784,9 +784,9 @@ fn matchTupleScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool {
         else => |e| return e,
     };
 
-    if (len != info.fields.len) return false;
+    if (len != info.field_names.len) return false;
 
-    if (info.fields.len == 0) {
+    if (info.field_names.len == 0) {
         iter_.* = iter;
         val_.* = .{};
         return true;
@@ -794,8 +794,8 @@ fn matchTupleScalar(comptime T: type, iter_: *[]const u8, val_: *T) Error!bool {
 
     var val: T = undefined;
 
-    inline for (info.fields) |f| {
-        if (!try matchValue(&iter, extract(&@field(val, f.name)))) return false;
+    inline for (info.field_names) |name| {
+        if (!try matchValue(&iter, extract(&@field(val, name)))) return false;
     }
 
     val_.* = val;
@@ -813,9 +813,9 @@ fn matchTupleAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: st
         else => |e| return e,
     };
 
-    if (len != info.fields.len) return false;
+    if (len != info.field_names.len) return false;
 
-    if (info.fields.len == 0) {
+    if (info.field_names.len == 0) {
         iter_.* = iter;
         val_.* = .{};
         return true;
@@ -823,8 +823,8 @@ fn matchTupleAlloc(comptime T: type, iter_: *[]const u8, val_: *T, allocator: st
 
     var val: T = undefined;
 
-    inline for (info.fields) |f| {
-        if (!try matchValue(&iter, extractAlloc(&@field(val, f.name), allocator))) return false;
+    inline for (info.field_names) |name| {
+        if (!try matchValue(&iter, extractAlloc(&@field(val, name), allocator))) return false;
     }
 
     val_.* = val;
